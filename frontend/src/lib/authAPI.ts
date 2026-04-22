@@ -35,6 +35,10 @@ export interface RegisterRequest {
   branch_name?: string
 }
 
+export interface CreateBranchRequest {
+  name: string
+}
+
 export const authAPI = {
   login: (data: LoginRequest) =>
     apiClient.post<LoginResponse>('/auth/login', data),
@@ -43,6 +47,9 @@ export const authAPI = {
     apiClient.post<LoginResponse>('/auth/register', data),
 
   getBranches: () => apiClient.get<Branch[]>('/branches'),
+
+  createBranch: (data: CreateBranchRequest) =>
+    apiClient.post<Branch>('/branches', data),
 }
 
 export default authAPI

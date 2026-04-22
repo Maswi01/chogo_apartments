@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import authAPI from '../lib/authAPI'
 
@@ -32,86 +32,80 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Chogo Apartments
-          </h1>
-          <p className="text-gray-600">Property Management System</p>
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
+      <div className="hidden md:flex items-center justify-center bg-gradient-to-br from-blue-700 to-sky-500 p-12">
+        <div className="max-w-md text-white">
+          <h1 className="text-4xl font-extrabold mb-4">Chogo Apartments</h1>
+          <p className="text-lg opacity-90">Modern property management, simplified. Securely manage branches, staff, properties and payments from one place.</p>
+          <ul className="mt-6 space-y-3">
+            <li className="flex items-center gap-3"><span className="inline-block bg-white/20 p-2 rounded">✓</span> Multi-branch support</li>
+            <li className="flex items-center gap-3"><span className="inline-block bg-white/20 p-2 rounded">✓</span> Role-based access</li>
+            <li className="flex items-center gap-3"><span className="inline-block bg-white/20 p-2 rounded">✓</span> Fast onboarding</li>
+          </ul>
         </div>
+      </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700 text-sm font-medium">{error}</p>
+      <div className="flex items-center justify-center p-8">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-10">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold text-slate-900">Welcome back</h2>
+            <p className="text-sm text-slate-500 mt-1">Sign in to continue to Chogo Apartments</p>
           </div>
-        )}
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              required
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-sky-300"
+                placeholder="you@company.com"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-sky-300"
+                placeholder="••••••••"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <input id="remember" type="checkbox" className="h-4 w-4" />
+                <label htmlFor="remember" className="text-sm text-slate-600">Remember me</label>
+              </div>
+              <a className="text-sm text-sky-600 hover:underline" href="#">Forgot?</a>
+            </div>
+
+            <button
+              type="submit"
               disabled={loading}
-            />
+              className="w-full py-3 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-700 transition"
+            >
+              {loading ? 'Logging in...' : 'Sign in'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center text-sm text-slate-500">
+            Contact your administrator to create an account.
           </div>
-
-          {/* Password */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              required
-              disabled={loading}
-            />
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition duration-200"
-          >
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
-
-        {/* Divider */}
-        <div className="my-6 flex items-center">
-          <div className="flex-1 border-t border-gray-300"></div>
-          <span className="px-3 text-sm text-gray-500">or</span>
-          <div className="flex-1 border-t border-gray-300"></div>
         </div>
-
-        {/* Register Link */}
-        <p className="text-center text-gray-600 text-sm">
-          Don't have an account?{' '}
-          <Link
-            to="/register"
-            className="text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Register here
-          </Link>
-        </p>
       </div>
     </div>
   )

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import authAPI, { type Branch } from '../lib/authAPI'
+import DashboardLayout from '../components/DashboardLayout'
 
 const CREATE_NEW_BRANCH_VALUE = '__create_new__'
 
@@ -118,14 +119,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Chogo Apartments
-          </h1>
-          <p className="text-gray-600">Create Your Account</p>
+    <DashboardLayout title="Register Staff">
+      <div className="w-full max-w-2xl">
+        <div className="mb-6">
+          <h3 className="text-2xl font-black text-slate-900">Register Staff Account</h3>
+          <p className="text-slate-600 mt-1">Create a staff login and assign them to an existing branch or a new branch.</p>
         </div>
 
         {/* Error Message */}
@@ -263,17 +261,7 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        {/* Login Link */}
-        <p className="text-center text-gray-600 text-sm mt-6">
-          Already have an account?{' '}
-          <Link
-            to="/login"
-            className="text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Login here
-          </Link>
-        </p>
       </div>
-    </div>
+    </DashboardLayout>
   )
 }

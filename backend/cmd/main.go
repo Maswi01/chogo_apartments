@@ -60,6 +60,7 @@ func main() {
 	r.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/branches", branchHandler.ListPublic).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/branches", branchHandler.Create).Methods("POST", "OPTIONS")
 
 	// Health check
 	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {

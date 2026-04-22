@@ -4,6 +4,7 @@ import { PrivateRoute } from './components/PrivateRoute'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
+import AddBranchPage from './pages/AddBranchPage'
 
 function App() {
   return (
@@ -16,6 +17,14 @@ function App() {
           element={
             <PrivateRoute>
               <DashboardPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/branches/new"
+          element={
+            <PrivateRoute>
+              <AddBranchPage />
             </PrivateRoute>
           }
         />
