@@ -313,8 +313,9 @@ VITE_API_URL=/api
 
 **For `https://apartments.chogocredit.co.tz/`**:
 - Serve the frontend build from the domain root
-- Proxy `/api` to the Go backend on port 8081
+- Proxy `/api/` to the Go backend on port 8081 with Nginx
 - Set `VITE_API_URL=/api` for production builds
+- Use the Nginx example in `deploy/nginx-apartments.conf.example`
 
 ### Production Checklist
 - [ ] Update JWT_SECRET to strong random value

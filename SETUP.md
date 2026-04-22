@@ -286,6 +286,20 @@ VITE_API_URL=/api
    - Frontend: Browser console (F12)
    - Database: `make docker-logs`
 
+   ## Production Nginx Config
+
+   For `https://apartments.chogocredit.co.tz/`, use the example in `deploy/nginx-apartments.conf.example`.
+
+   The important part is:
+
+   ```nginx
+   location /api/ {
+      proxy_pass http://127.0.0.1:8081;
+   }
+   ```
+
+   This keeps `/api/auth/register` going to the backend instead of the static frontend.
+
 ## Tips
 
 - Use `make help` to see all available commands
