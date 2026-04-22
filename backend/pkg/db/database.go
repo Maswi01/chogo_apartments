@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -171,6 +172,17 @@ func createTables(db *sql.DB) error {
 	);
 	`
 
-	_, err := db.Exec(schema)
-	return err
+	statements := strings.Split(schema, ";")
+	for _, stmt := range statements {
+		query := strings.TrimSpace(stmt)
+		if query == "" {
+			continue
+		}
+
+		if _, err := db.Exec(query); err != nil {
+			return fmt.Errorf("failed to execute schema statement: %w", err)
+		}
+	}
+
+	return nil
 }

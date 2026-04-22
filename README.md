@@ -20,7 +20,7 @@ A full-stack apartment management system built to scale from 3 to 300 properties
 - **Database**: MySQL 5.7+
 - **API**: REST (Gorilla Mux)
 - **Auth**: JWT + bcrypt
-- **Port**: 8080
+- **Port**: 8081
 
 ### Frontend
 - **Framework**: React 18
@@ -29,7 +29,8 @@ A full-stack apartment management system built to scale from 3 to 300 properties
 - **Routing**: React Router v6
 - **HTTP**: Axios
 - **Build**: Vite
-- **Port**: 5173
+- **Port**: 5174
+- **Production API Base**: `/api`
 
 ## Project Structure
 
@@ -79,10 +80,10 @@ mysql -u root -p -e "CREATE DATABASE chogo_apartments;"
 
 # Run server
 go run ./cmd/main.go
-# Server runs on http://localhost:8080
+# Server runs on http://localhost:8081
 ```
 
-Test: `curl http://localhost:8080/api/health`
+Test: `curl http://localhost:8081/api/health`
 
 ### 2. Frontend Setup
 
@@ -94,12 +95,12 @@ npm install
 
 # Start dev server
 npm run dev
-# Opens http://localhost:5173
+# Opens http://localhost:5174
 ```
 
 ### 3. Try It Out
 
-1. Go to http://localhost:5173/register
+1. Go to http://localhost:5174/register
 2. Create account with:
    - Email: `admin@example.com`
    - Password: `password123`
@@ -290,14 +291,14 @@ PORT=8080
 
 ### Frontend (optional .env)
 ```env
-VITE_API_URL=http://localhost:8080/api
+VITE_API_URL=/api
 ```
 
 ## Deployment
 
 ### Local Development
-- Backend: `go run ./cmd/main.go` (port 8080)
-- Frontend: `npm run dev` (port 5173)
+- Backend: `go run ./cmd/main.go` (port 8081)
+- Frontend: `npm run dev` (port 5174)
 
 ### Hosting Options
 
@@ -309,6 +310,11 @@ VITE_API_URL=http://localhost:8080/api
 - Vercel, Netlify (recommended for Vite)
 - GitHub Pages, AWS S3 + CloudFront
 - Same server as backend with reverse proxy (Nginx)
+
+**For `https://apartments.chogocredit.co.tz/`**:
+- Serve the frontend build from the domain root
+- Proxy `/api` to the Go backend on port 8081
+- Set `VITE_API_URL=/api` for production builds
 
 ### Production Checklist
 - [ ] Update JWT_SECRET to strong random value
@@ -329,8 +335,8 @@ VITE_API_URL=http://localhost:8080/api
 # Check MySQL is running
 mysql -u root -p
 
-# Check port 8080 is free
-lsof -i :8080
+# Check port 8081 is free
+lsof -i :8081
 
 # Check env variables
 cat backend/.env
@@ -339,7 +345,7 @@ cat backend/.env
 ### Frontend can't reach backend
 ```bash
 # Check backend is running
-curl http://localhost:8080/api/health
+curl http://localhost:8081/api/health
 
 # Check CORS in backend (should be *)
 # Check proxy in vite.config.ts
@@ -352,7 +358,7 @@ curl http://localhost:8080/api/health
 1. Verify email/password in database
 2. Check JWT_SECRET in backend
 3. Check localStorage in browser
-4. Test API directly: `curl -X POST http://localhost:8080/api/auth/login -d '{"email":"test@example.com","password":"pass"}'`
+4. Test API directly: `curl -X POST http://localhost:8081/api/auth/login -d '{"email":"test@example.com","password":"pass"}'`
 
 ## Support & Documentation
 

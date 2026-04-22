@@ -84,8 +84,8 @@ make frontend-setup     # Just frontend dependencies
 ### Development
 ```bash
 make dev               # Start dev environment (shows instructions)
-make backend           # Run Go server (port 8080)
-make frontend          # Run React development server (port 5173)
+make backend           # Run Go server (port 8081)
+make frontend          # Run React development server (port 5174)
 ```
 
 ### Build
@@ -136,22 +136,22 @@ kill -9 <PID>
 # Or use different port in .env
 ```
 
-**Port 8080 (Backend)**:
+**Port 8081 (Backend)**:
 ```bash
-lsof -i :8080
+lsof -i :8081
 # Backend will show which process is using it
 ```
 
-**Port 5173 (Frontend)**:
+**Port 5174 (Frontend)**:
 ```bash
-npm run dev -- --port 5174  # Use different port
+npm run dev -- --port 5175  # Use different port
 ```
 
 ### Frontend Can't Connect to Backend
 
 1. Check backend is running:
    ```bash
-   curl http://localhost:8080/api/health
+   curl http://localhost:8081/api/health
    ```
 
 2. Check proxy config in `frontend/vite.config.ts`
@@ -194,7 +194,7 @@ DROP TABLE IF EXISTS maintenance_requests;
 ## Next Steps
 
 1. **Test Login**:
-   - Go to http://localhost:5173/register
+   - Go to http://localhost:5174/register
    - Create account
    - Verify dashboard loads
 
@@ -266,14 +266,14 @@ DB_NAME=chogo_apartments
 JWT_SECRET=your-secret-key-change-in-production
 
 # Server
-PORT=8080
+PORT=8081
 ```
 
 ### Frontend (frontend/.env - optional)
 
 ```env
-# API endpoint (defaults to http://localhost:8080/api)
-VITE_API_URL=http://localhost:8080/api
+# API endpoint (defaults to same-origin /api)
+VITE_API_URL=/api
 ```
 
 ## Getting Help
