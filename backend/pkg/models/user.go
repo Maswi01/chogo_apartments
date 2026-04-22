@@ -13,6 +13,11 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type Branch struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`

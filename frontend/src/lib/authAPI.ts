@@ -22,6 +22,11 @@ export interface LoginResponse {
   message: string
 }
 
+export interface Branch {
+  id: number
+  name: string
+}
+
 export interface RegisterRequest {
   email: string
   password: string
@@ -36,6 +41,8 @@ export const authAPI = {
 
   register: (data: RegisterRequest) =>
     apiClient.post<LoginResponse>('/auth/register', data),
+
+  getBranches: () => apiClient.get<Branch[]>('/branches'),
 }
 
 export default authAPI

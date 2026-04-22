@@ -25,6 +25,11 @@ func InitDB(user, password, host, port, dbname string) (*sql.DB, error) {
 		return nil, err
 	}
 
+	// Seed initial branch records for first-time setups.
+	if err := seedDefaultBranches(db); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 
@@ -181,6 +186,21 @@ func createTables(db *sql.DB) error {
 
 		if _, err := db.Exec(query); err != nil {
 			return fmt.Errorf("failed to execute schema statement: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func seedDefaultBranches(db *sql.DB) error {
+	defaultBranches := []string{
+		"Administration",
+		"Main Branch",
+	}
+
+	for _, name := range defaultBranches {
+		if _, err := db.Exec("INSERT IGNORE INTO branches (name) VALUES (?)", name); err != nil {
+			return fmt.Errorf("failed to seed branch %q: %w", name, err)
 		}
 	}
 

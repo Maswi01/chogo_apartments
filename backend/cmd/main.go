@@ -48,6 +48,7 @@ func main() {
 
 	// Initialize handlers with database
 	authHandler := handlers.NewAuthHandler(database, jwtSecret)
+	branchHandler := handlers.NewBranchHandler(database)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -58,13 +59,14 @@ func main() {
 	// Public routes
 	r.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/branches", branchHandler.ListPublic).Methods("GET", "OPTIONS")
 
 	// Health check
 	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, `{"status":"ok"}`)
-	}).Methods("GET")
+	}).Methods("GET", "OPTIONS")
 
 	// Start server
 	port := os.Getenv("PORT")

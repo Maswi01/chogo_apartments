@@ -132,13 +132,24 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// If branch_id provided, use it; otherwise create or find branch by name
 	if req.BranchID > 0 {
-		branchID = req.BranchID
-	} else if req.BranchName != "" {
+		err := h.db.QueryRow("SELECT id FROM branches WHERE id = ?", req.BranchID).Scan(&branchID)
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(models.ErrorResponse{Error: "invalid_branch", Message: "Selected branch does not exist"})
+			return
+		}
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(models.ErrorResponse{Error: "database_error", Message: "An error occurred"})
+			return
+		}
+	} else if strings.TrimSpace(req.BranchName) != "" {
+		branchName := strings.TrimSpace(req.BranchName)
 		// Try to find branch by name
-		err := h.db.QueryRow("SELECT id FROM branches WHERE name = ?", req.BranchName).Scan(&branchID)
+		err := h.db.QueryRow("SELECT id FROM branches WHERE name = ?", branchName).Scan(&branchID)
 		if err == sql.ErrNoRows {
 			// Create new branch
-			result, err := h.db.Exec("INSERT INTO branches (name) VALUES (?)", req.BranchName)
+			result, err := h.db.Exec("INSERT INTO branches (name) VALUES (?)", branchName)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(models.ErrorResponse{Error: "branch_error", Message: "Failed to create branch"})

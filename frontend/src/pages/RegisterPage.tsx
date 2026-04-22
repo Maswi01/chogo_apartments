@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import authAPI from '../lib/authAPI'
+import authAPI, { type Branch } from '../lib/authAPI'
+
+const CREATE_NEW_BRANCH_VALUE = '__create_new__'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -9,14 +11,34 @@ export default function RegisterPage() {
     email: '',
     password: '',
     confirm_password: '',
+    branch_id: '',
     branch_name: '',
   })
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [branchesLoading, setBranchesLoading] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    const loadBranches = async () => {
+      try {
+        const response = await authAPI.getBranches()
+        setBranches(response.data)
+      } catch {
+        setError('Failed to load branches. You can still create a new one below.')
+      } finally {
+        setBranchesLoading(false)
+      }
+    }
+
+    loadBranches()
+  }, [])
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
@@ -44,6 +66,22 @@ export default function RegisterPage() {
       return
     }
 
+    const wantsNewBranch = formData.branch_id === CREATE_NEW_BRANCH_VALUE
+    const selectedBranchID =
+      formData.branch_id && !wantsNewBranch
+        ? Number.parseInt(formData.branch_id, 10)
+        : undefined
+
+    if (!formData.branch_id) {
+      setError('Please choose a branch or create a new one')
+      return
+    }
+
+    if (wantsNewBranch && !formData.branch_name.trim()) {
+      setError('Please enter a new branch name')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -51,17 +89,29 @@ export default function RegisterPage() {
         full_name: formData.full_name,
         email: formData.email,
         password: formData.password,
-        branch_name: formData.branch_name || 'Main Branch',
+        branch_id: selectedBranchID,
+        branch_name: wantsNewBranch ? formData.branch_name.trim() : undefined,
       })
 
       login(response.data.user, response.data.token)
       navigate('/dashboard')
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'Registration failed. Please try again.'
-      )
+    } catch (err: unknown) {
+      const message =
+        typeof err === 'object' &&
+        err !== null &&
+        'response' in err &&
+        typeof (err as { response?: { data?: { message?: string } } }).response
+          ?.data?.message === 'string'
+          ? (err as { response?: { data?: { message?: string } } }).response!
+              .data!.message!
+          : typeof err === 'object' &&
+              err !== null &&
+              'message' in err &&
+              typeof (err as { message?: string }).message === 'string'
+            ? (err as { message?: string }).message!
+            : 'Registration failed. Please try again.'
+
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -123,22 +173,49 @@ export default function RegisterPage() {
             />
           </div>
 
-          {/* Branch Name */}
+          {/* Branch Selection */}
           <div>
-            <label htmlFor="branch_name" className="block text-sm font-medium text-gray-700 mb-2">
-              Branch Name (Optional)
+            <label htmlFor="branch_id" className="block text-sm font-medium text-gray-700 mb-2">
+              Branch
             </label>
-            <input
-              id="branch_name"
-              type="text"
-              name="branch_name"
-              value={formData.branch_name}
+            <select
+              id="branch_id"
+              name="branch_id"
+              value={formData.branch_id}
               onChange={handleChange}
-              placeholder="e.g., Mikocheni Block A"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              disabled={loading}
-            />
+              disabled={loading || branchesLoading}
+            >
+              <option value="">Choose a branch</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={String(branch.id)}>
+                  {branch.name}
+                </option>
+              ))}
+              <option value={CREATE_NEW_BRANCH_VALUE}>+ Create new branch</option>
+            </select>
+            {branchesLoading && (
+              <p className="mt-2 text-xs text-gray-500">Loading branches...</p>
+            )}
           </div>
+
+          {formData.branch_id === CREATE_NEW_BRANCH_VALUE && (
+            <div>
+              <label htmlFor="branch_name" className="block text-sm font-medium text-gray-700 mb-2">
+                New Branch Name
+              </label>
+              <input
+                id="branch_name"
+                type="text"
+                name="branch_name"
+                value={formData.branch_name}
+                onChange={handleChange}
+                placeholder="e.g., Mikocheni Block A"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                disabled={loading}
+              />
+            </div>
+          )}
 
           {/* Password */}
           <div>
