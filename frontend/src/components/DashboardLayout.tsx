@@ -123,8 +123,15 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
       <div className="flex min-h-screen">
         <aside className="w-72 bg-gradient-to-b from-cyan-800 to-cyan-900 text-white px-5 py-6 flex flex-col">
           <div className="mb-6 flex items-center gap-3">
-            <img src={logoUrl} alt="Logo" className="h-10 w-10 rounded-md bg-white/10 p-1" />
-            <h1 className="text-2xl font-black tracking-wide">CHOGO</h1>
+            <img
+              src={logoUrl}
+              alt="Mwita Family Apartments"
+              className="h-16 w-16 rounded-full bg-white p-1.5 shadow-md ring-2 ring-white/40 object-contain"
+            />
+            <div className="leading-tight">
+              <h1 className="text-base font-black tracking-wide">MWITA FAMILY</h1>
+              <p className="text-xs font-semibold text-cyan-200">APARTMENTS</p>
+            </div>
           </div>
 
           <div className="mb-6 rounded-xl bg-blue-950/40 border border-blue-900/40 p-3">

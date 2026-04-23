@@ -45,10 +45,14 @@ export default function LoginPage() {
       >
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-slate-900/30 to-transparent" />
         <div className="relative h-full flex items-end p-10">
-          <div className="flex items-center gap-3 text-white">
-            <img src={logoUrl} alt="Chogo" className="h-12 w-12 rounded-md bg-white/90 p-1" />
+          <div className="flex items-center gap-4 text-white">
+            <img
+              src={logoUrl}
+              alt="Mwita Family Apartments"
+              className="h-20 w-20 rounded-full bg-white p-2 shadow-xl ring-2 ring-white/60 object-contain"
+            />
             <div>
-              <h1 className="text-2xl font-extrabold leading-tight">Chogo Apartments</h1>
+              <h1 className="text-3xl font-extrabold leading-tight drop-shadow">Mwita Family Apartments</h1>
               <p className="text-sm opacity-90">Property Management System</p>
             </div>
           </div>
@@ -59,7 +63,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-10">
           <div className="mb-6 text-center">
             <h2 className="text-2xl font-bold text-slate-900">Welcome back</h2>
-            <p className="text-sm text-slate-500 mt-1">Sign in to continue to Chogo Apartments</p>
+            <p className="text-sm text-slate-500 mt-1">Sign in to continue to Mwita Family Apartments</p>
           </div>
 
           {error && (
