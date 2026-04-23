@@ -101,12 +101,9 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <input id="remember" type="checkbox" className="h-4 w-4" />
-                <label htmlFor="remember" className="text-sm text-slate-600">Remember me</label>
-              </div>
-              <a className="text-sm text-sky-600 hover:underline" href="#">Forgot?</a>
+            <div className="flex items-center gap-2">
+              <input id="remember" type="checkbox" className="h-4 w-4" />
+              <label htmlFor="remember" className="text-sm text-slate-600">Remember me</label>
             </div>
 
             <button

@@ -50,6 +50,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(database, jwtSecret)
 	branchHandler := handlers.NewBranchHandler(database)
 	apartmentHandler := handlers.NewApartmentHandler(database)
+	expenseCatHandler := handlers.NewExpenseCategoryHandler(database)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -78,6 +79,12 @@ func main() {
 	r.HandleFunc("/api/transactions", apartmentHandler.CreateTransaction).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/dashboard/branch", apartmentHandler.BranchDashboard).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/dashboard/admin", apartmentHandler.AdminDashboard).Methods("GET", "OPTIONS")
+
+	// Expense categories (Administration)
+	r.HandleFunc("/api/expense-categories", expenseCatHandler.List).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/expense-categories", expenseCatHandler.Create).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/expense-categories/{id}", expenseCatHandler.Update).Methods("PUT", "OPTIONS")
+	r.HandleFunc("/api/expense-categories/{id}", expenseCatHandler.Delete).Methods("DELETE", "OPTIONS")
 
 	// Health check
 	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {

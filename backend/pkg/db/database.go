@@ -30,6 +30,10 @@ func InitDB(user, password, host, port, dbname string) (*sql.DB, error) {
 		return nil, err
 	}
 
+	if err := seedDefaultExpenseCategories(db); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 
@@ -219,6 +223,15 @@ func createTables(db *sql.DB) error {
 		INDEX idx_invoices_status (status)
 	);
 
+	CREATE TABLE IF NOT EXISTS expense_categories (
+		id INT PRIMARY KEY AUTO_INCREMENT,
+		name VARCHAR(80) NOT NULL UNIQUE,
+		description VARCHAR(255),
+		is_active BOOLEAN DEFAULT TRUE,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	);
+
 	CREATE TABLE IF NOT EXISTS office_transactions (
 		id INT PRIMARY KEY AUTO_INCREMENT,
 		branch_id INT NOT NULL,
@@ -275,5 +288,25 @@ func seedDefaultBranches(db *sql.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func seedDefaultExpenseCategories(db *sql.DB) error {
+	defaults := []string{
+		"Utilities",
+		"Repairs & Maintenance",
+		"Salaries",
+		"Security",
+		"Cleaning",
+		"Office Supplies",
+		"Marketing",
+		"Taxes & Licenses",
+		"Miscellaneous",
+	}
+	for _, name := range defaults {
+		if _, err := db.Exec("INSERT IGNORE INTO expense_categories (name) VALUES (?)", name); err != nil {
+			return fmt.Errorf("failed to seed expense category %q: %w", name, err)
+		}
+	}
 	return nil
 }
