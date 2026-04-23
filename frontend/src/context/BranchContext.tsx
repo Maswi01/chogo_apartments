@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext'
 interface BranchContextValue {
   branches: Branch[]
   activeBranch: Branch | null
+  isAdminBranch: boolean
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
@@ -70,6 +71,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const value: BranchContextValue = {
     branches,
     activeBranch,
+    isAdminBranch: activeBranch?.name?.toLowerCase() === 'administration',
     loading,
     error,
     refresh,

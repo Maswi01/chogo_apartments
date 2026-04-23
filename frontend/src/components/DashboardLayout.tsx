@@ -9,7 +9,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ title, children }: DashboardLayoutProps) {
   const { user, logout } = useAuth()
-  const { branches, activeBranch, setActiveBranchById } = useBranches()
+  const { branches, activeBranch, isAdminBranch, setActiveBranchById } = useBranches()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -21,6 +21,65 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
     'block w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors'
   const activeClass = 'bg-blue-900 text-yellow-300'
   const inactiveClass = 'bg-blue-900/60 hover:bg-blue-900/90 text-white'
+
+  const adminNav = (
+    <>
+      <NavLink to="/dashboard" end className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Home
+      </NavLink>
+      <div>
+        <p className="mt-4 mb-2 text-xs font-bold uppercase tracking-wider text-cyan-100">Branches</p>
+        <div className="space-y-2 pl-1">
+          <NavLink to="/branches" end className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+            All Branches
+          </NavLink>
+          <NavLink to="/branches/new" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+            Add Branch
+          </NavLink>
+        </div>
+      </div>
+      <div>
+        <p className="mt-4 mb-2 text-xs font-bold uppercase tracking-wider text-cyan-100">Registration</p>
+        <div className="space-y-2 pl-1">
+          <NavLink to="/register" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+            Register Staff
+          </NavLink>
+        </div>
+      </div>
+    </>
+  )
+
+  const branchNav = (
+    <>
+      <NavLink to="/dashboard" end className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Home
+      </NavLink>
+      <NavLink to="/rooms/new" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Register Room
+      </NavLink>
+      <NavLink to="/tenants/new" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Register Tenant
+      </NavLink>
+      <NavLink to="/invoices" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Tenant Invoice
+      </NavLink>
+      <NavLink to="/rooms?status=vacant" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Rental Room
+      </NavLink>
+      <NavLink to="/rooms?status=occupied" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Rented Room
+      </NavLink>
+      <NavLink to="/statements" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Tenant Statement
+      </NavLink>
+      <NavLink to="/transactions" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Office Transaction
+      </NavLink>
+      <NavLink to="/reports" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Office Report
+      </NavLink>
+    </>
+  )
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -44,47 +103,8 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
             </select>
           </div>
 
-          <nav className="space-y-5 flex-1">
-            <div>
-              <NavLink
-                to="/dashboard"
-                end
-                className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}
-              >
-                Home
-              </NavLink>
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-100">Branches</p>
-              <div className="space-y-2 pl-1">
-                <NavLink
-                  to="/branches"
-                  end
-                  className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}
-                >
-                  All Branches
-                </NavLink>
-                <NavLink
-                  to="/branches/new"
-                  className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}
-                >
-                  Add Branch
-                </NavLink>
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-100">Registration</p>
-              <div className="space-y-2 pl-1">
-                <NavLink
-                  to="/register"
-                  className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}
-                >
-                  Register Staff
-                </NavLink>
-              </div>
-            </div>
+          <nav className="space-y-2 flex-1 overflow-y-auto">
+            {isAdminBranch ? adminNav : branchNav}
           </nav>
 
           <div className="mt-6 pt-6 border-t border-cyan-700/50 text-xs text-cyan-100">

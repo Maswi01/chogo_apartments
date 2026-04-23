@@ -49,6 +49,7 @@ func main() {
 	// Initialize handlers with database
 	authHandler := handlers.NewAuthHandler(database, jwtSecret)
 	branchHandler := handlers.NewBranchHandler(database)
+	apartmentHandler := handlers.NewApartmentHandler(database)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -61,6 +62,22 @@ func main() {
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/branches", branchHandler.ListPublic).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/branches", branchHandler.Create).Methods("POST", "OPTIONS")
+
+	// Apartment management (allow all access for now per requirement)
+	r.HandleFunc("/api/rooms", apartmentHandler.ListRooms).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/rooms", apartmentHandler.CreateRoom).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/tenants", apartmentHandler.ListTenants).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/tenants", apartmentHandler.CreateTenant).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/contracts", apartmentHandler.ListContracts).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/contracts", apartmentHandler.CreateContract).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/invoices", apartmentHandler.ListInvoices).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/invoices", apartmentHandler.CreateInvoice).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/payments", apartmentHandler.ListPayments).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/payments", apartmentHandler.CreatePayment).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/transactions", apartmentHandler.ListTransactions).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/transactions", apartmentHandler.CreateTransaction).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/dashboard/branch", apartmentHandler.BranchDashboard).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/dashboard/admin", apartmentHandler.AdminDashboard).Methods("GET", "OPTIONS")
 
 	// Health check
 	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
