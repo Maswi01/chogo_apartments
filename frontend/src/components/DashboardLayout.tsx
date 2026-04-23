@@ -123,11 +123,11 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
       <div className="flex min-h-screen">
         <aside className="w-72 bg-gradient-to-b from-cyan-800 to-cyan-900 text-white px-5 py-6 flex flex-col">
           <div className="mb-6 flex items-center gap-3">
-            <div className="h-20 w-20 rounded-full bg-white shadow-md ring-2 ring-white/40 flex items-center justify-center overflow-hidden shrink-0">
+            <div className="h-20 w-20 rounded-lg bg-white shadow-md ring-1 ring-white/30 flex items-center justify-center overflow-hidden shrink-0 p-1">
               <img
                 src={logoUrl}
                 alt="Mwita Family Apartments"
-                className="max-h-[90%] max-w-[90%] object-contain"
+                className="max-h-full max-w-full object-contain"
               />
             </div>
             <div className="leading-tight">

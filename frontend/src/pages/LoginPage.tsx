@@ -46,11 +46,11 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-slate-900/30 to-transparent" />
         <div className="relative h-full flex items-end p-10">
           <div className="flex items-center gap-4 text-white">
-            <div className="h-28 w-28 rounded-full bg-white shadow-xl ring-2 ring-white/60 flex items-center justify-center overflow-hidden shrink-0">
+            <div className="h-32 w-32 rounded-xl bg-white shadow-xl ring-1 ring-white/40 flex items-center justify-center overflow-hidden shrink-0 p-2">
               <img
                 src={logoUrl}
                 alt="Mwita Family Apartments"
-                className="max-h-[90%] max-w-[90%] object-contain"
+                className="max-h-full max-w-full object-contain"
               />
             </div>
             <div>
