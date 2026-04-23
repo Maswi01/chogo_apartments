@@ -68,19 +68,21 @@ type Invoice struct {
 }
 
 type Payment struct {
-	ID            int       `json:"id"`
-	BranchID      int       `json:"branch_id"`
-	TenantID      int       `json:"tenant_id"`
-	ContractID    int       `json:"contract_id"`
-	InvoiceID     int       `json:"invoice_id"`
-	Amount        float64   `json:"amount"`
-	PaymentDate   string    `json:"payment_date"`
-	ReceiptNumber string    `json:"receipt_number"`
-	PaymentMethod string    `json:"payment_method"`
-	Notes         string    `json:"notes"`
-	TenantName    string    `json:"tenant_name,omitempty"`
-	RoomCode      string    `json:"room_code,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID             int       `json:"id"`
+	BranchID       int       `json:"branch_id"`
+	TenantID       int       `json:"tenant_id"`
+	ContractID     int       `json:"contract_id"`
+	InvoiceID      int       `json:"invoice_id"`
+	Amount         float64   `json:"amount"`
+	PaymentDate    string    `json:"payment_date"`
+	ReceiptNumber  string    `json:"receipt_number"`
+	PaymentMethod  string    `json:"payment_method"`
+	Notes          string    `json:"notes"`
+	RecordedBy     int       `json:"recorded_by,omitempty"`
+	RecordedByName string    `json:"recorded_by_name,omitempty"`
+	TenantName     string    `json:"tenant_name,omitempty"`
+	RoomCode       string    `json:"room_code,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type OfficeTransaction struct {

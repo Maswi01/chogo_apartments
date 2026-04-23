@@ -4,6 +4,7 @@ import DashboardLayout from '../components/DashboardLayout'
 import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type Contract, type Invoice } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
+import { useAuth } from '../context/AuthContext'
 
 const fmt = (n: number) => new Intl.NumberFormat().format(n)
 
@@ -243,6 +244,7 @@ function PaymentModal({
   onClose: () => void
   onPaid: () => void
 }) {
+  const { user } = useAuth()
   const balance = invoice.amount_due - invoice.amount_paid
   const [form, setForm] = useState({
     amount: String(balance),
@@ -267,6 +269,7 @@ function PaymentModal({
         receipt_number: form.receipt_number,
         payment_method: form.payment_method,
         notes: form.notes,
+        recorded_by: user?.id,
       })
       onPaid()
     } catch (err: any) {

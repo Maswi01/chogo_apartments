@@ -51,6 +51,15 @@ func nullDate(s sql.NullString) string {
 	return ""
 }
 
+// nullableInt returns sql.NullInt64 (NULL when v <= 0) suitable for INSERT bindings
+// where the column is nullable and we want NULL instead of 0.
+func nullableInt(v int) interface{} {
+	if v <= 0 {
+		return nil
+	}
+	return v
+}
+
 // ---------- Rooms ----------
 
 func (h *ApartmentHandler) ListRooms(w http.ResponseWriter, r *http.Request) {
@@ -461,6 +470,7 @@ type paymentIn struct {
 	ReceiptNumber string  `json:"receipt_number"`
 	PaymentMethod string  `json:"payment_method"`
 	Notes         string  `json:"notes"`
+	RecordedBy    int     `json:"recorded_by"`
 }
 
 func (h *ApartmentHandler) CreatePayment(w http.ResponseWriter, r *http.Request) {
@@ -496,10 +506,10 @@ func (h *ApartmentHandler) CreatePayment(w http.ResponseWriter, r *http.Request)
 	}
 
 	if _, err := tx.Exec(
-		`INSERT INTO payments (branch_id, tenant_id, unit_id, invoice_id, contract_id, amount, payment_date, receipt_number, payment_method, notes)
-		 VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO payments (branch_id, tenant_id, unit_id, invoice_id, contract_id, amount, payment_date, receipt_number, payment_method, notes, recorded_by)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		in.BranchID, tenantID, roomID, in.InvoiceID, contractID, in.Amount, in.PaymentDate,
-		in.ReceiptNumber, in.PaymentMethod, in.Notes,
+		in.ReceiptNumber, in.PaymentMethod, in.Notes, nullableInt(in.RecordedBy),
 	); err != nil {
 		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
 		return
@@ -532,10 +542,12 @@ func (h *ApartmentHandler) ListPayments(w http.ResponseWriter, r *http.Request) 
 	dateFilter := r.URL.Query().Get("date") // YYYY-MM-DD
 	q := `SELECT p.id, p.branch_id, p.tenant_id, COALESCE(p.contract_id,0), COALESCE(p.invoice_id,0),
 	             p.amount, p.payment_date, COALESCE(p.receipt_number,''), COALESCE(p.payment_method,''), COALESCE(p.notes,''),
+	             COALESCE(p.recorded_by,0), COALESCE(u.full_name,''),
 	             t.full_name, COALESCE(r.code,''), p.created_at
 	      FROM payments p
 	      JOIN tenants t ON t.id = p.tenant_id
 	      LEFT JOIN rooms r ON r.id = p.unit_id
+	      LEFT JOIN users u ON u.id = p.recorded_by
 	      WHERE p.branch_id = ?`
 	args := []any{branchID}
 	if tenantID > 0 {
@@ -556,7 +568,8 @@ func (h *ApartmentHandler) ListPayments(w http.ResponseWriter, r *http.Request) 
 	out := make([]models.Payment, 0)
 	for rows.Next() {
 		var p models.Payment
-		var pd sql.NullString
+		var RecordedBy, &p.RecordedByName,
+			&p.pd sql.NullString
 		if err := rows.Scan(&p.ID, &p.BranchID, &p.TenantID, &p.ContractID, &p.InvoiceID,
 			&p.Amount, &pd, &p.ReceiptNumber, &p.PaymentMethod, &p.Notes,
 			&p.TenantName, &p.RoomCode, &p.CreatedAt); err != nil {

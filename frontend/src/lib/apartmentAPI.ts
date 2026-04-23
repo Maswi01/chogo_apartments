@@ -76,6 +76,8 @@ export interface Payment {
   receipt_number: string
   payment_method: string
   notes: string
+  recorded_by?: number
+  recorded_by_name?: string
   tenant_name?: string
   room_code?: string
   created_at: string
@@ -180,6 +182,7 @@ export const apartmentAPI = {
     receipt_number?: string
     payment_method?: string
     notes?: string
+    recorded_by?: number
   }) => apiClient.post('/payments', data),
 
   // Transactions

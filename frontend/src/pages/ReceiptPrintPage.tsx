@@ -110,7 +110,10 @@ export default function ReceiptPrintPage() {
 
           <div className="mt-16 flex justify-end">
             <div className="text-center text-[12px]">
-              <div className="border-t border-slate-700 px-12 pt-1 font-semibold">{activeBranch?.name?.includes('Mwita') ? activeBranch.name : 'Grace Bhoke Mwita'}</div>
+              <div className="border-t border-slate-700 px-12 pt-1 font-semibold">
+                {payment.recorded_by_name || 'Authorized Signatory'}
+              </div>
+              <div className="text-slate-500">Received by</div>
             </div>
           </div>
         </div>
