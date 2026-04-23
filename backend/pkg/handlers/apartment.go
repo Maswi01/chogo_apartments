@@ -129,7 +129,8 @@ func (h *ApartmentHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := h.db.Query(
-		`SELECT id, branch_id, full_name, COALESCE(phone,''), COALESCE(email,''), COALESCE(id_number,''), created_at
+		`SELECT id, branch_id, full_name, COALESCE(tenant_type,'individual'), COALESCE(organization_name,''), COALESCE(contact_person,''),
+		        COALESCE(phone,''), COALESCE(email,''), COALESCE(id_number,''), created_at
 		 FROM tenants WHERE branch_id = ? ORDER BY full_name ASC`, branchID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
@@ -139,7 +140,8 @@ func (h *ApartmentHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 	out := make([]models.Tenant, 0)
 	for rows.Next() {
 		var t models.Tenant
-		if err := rows.Scan(&t.ID, &t.BranchID, &t.FullName, &t.Phone, &t.Email, &t.IDNumber, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.BranchID, &t.FullName, &t.TenantType, &t.OrganizationName, &t.ContactPerson,
+			&t.Phone, &t.Email, &t.IDNumber, &t.CreatedAt); err != nil {
 			writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
 			return
 		}
@@ -159,14 +161,20 @@ func (h *ApartmentHandler) CreateTenant(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusBadRequest, "invalid_input", "branch_id and full_name required")
 		return
 	}
-	// tenants table requires unit_id NOT NULL in old schema; insert a placeholder of 0 isn't ideal.
-	// Allow null by relaxing: use a default unit_id of NULL via raw INSERT only of allowed columns when schema was relaxed.
-	// To stay compatible with current schema where unit_id is NOT NULL, store it as 0 only if the column allows; otherwise prefer creating tenant only when contract is created.
-	// We attempt insert without unit_id; if it fails we fall back to inserting with unit_id = NULL via schema alteration that the user can run.
+	if in.TenantType == "" {
+		in.TenantType = "individual"
+	}
+	if in.TenantType != "individual" && in.TenantType != "institution" {
+		writeErr(w, http.StatusBadRequest, "invalid_input", "tenant_type must be individual or institution")
+		return
+	}
+	if in.TenantType == "institution" && strings.TrimSpace(in.OrganizationName) == "" {
+		in.OrganizationName = in.FullName
+	}
 	res, err := h.db.Exec(
-		`INSERT INTO tenants (branch_id, full_name, phone, email, id_number, unit_id, status)
-		 VALUES (?,?,?,?,?, NULL, 'active')`,
-		in.BranchID, in.FullName, in.Phone, in.Email, in.IDNumber,
+		`INSERT INTO tenants (branch_id, full_name, tenant_type, organization_name, contact_person, phone, email, id_number, unit_id, status)
+		 VALUES (?,?,?,?,?,?,?,?, NULL, 'active')`,
+		in.BranchID, in.FullName, in.TenantType, in.OrganizationName, in.ContactPerson, in.Phone, in.Email, in.IDNumber,
 	)
 	if err != nil {
 		// Older schema requires NOT NULL unit_id; instruct user.
@@ -311,7 +319,7 @@ func (h *ApartmentHandler) ListContracts(w http.ResponseWriter, r *http.Request)
 	q := `SELECT c.id, c.branch_id, c.tenant_id, c.room_id, COALESCE(c.booking_code,''),
 	             c.start_date, c.end_date, c.monthly_rent, c.deposit,
 	             c.billing_cycle, c.cycle_amount, c.parent_contract_id, c.status,
-	             t.full_name, COALESCE(t.phone,''), r.code,
+	             t.full_name, COALESCE(t.phone,''), COALESCE(t.tenant_type,'individual'), r.code,
 	             COALESCE((SELECT SUM(amount_due) FROM invoices WHERE contract_id=c.id),0) AS inv_total,
 	             COALESCE((SELECT SUM(amount_paid) FROM invoices WHERE contract_id=c.id),0) AS paid_total,
 	             c.created_at
@@ -342,7 +350,7 @@ func (h *ApartmentHandler) ListContracts(w http.ResponseWriter, r *http.Request)
 		if err := rows.Scan(&c.ID, &c.BranchID, &c.TenantID, &c.RoomID, &c.BookingCode,
 			&sd, &ed, &c.MonthlyRent, &c.Deposit,
 			&c.BillingCycle, &c.CycleAmount, &parentID, &c.Status,
-			&c.TenantName, &c.TenantPhone, &c.RoomCode,
+			&c.TenantName, &c.TenantPhone, &c.TenantType, &c.RoomCode,
 			&c.InvoiceTotal, &c.PaidTotal, &c.CreatedAt); err != nil {
 			writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
 			return

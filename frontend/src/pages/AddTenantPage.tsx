@@ -9,6 +9,9 @@ export default function AddTenantPage() {
   const navigate = useNavigate()
   const [rooms, setRooms] = useState<Room[]>([])
   const [form, setForm] = useState({
+    tenant_type: 'individual' as 'individual' | 'institution',
+    organization_name: '',
+    contact_person: '',
     full_name: '',
     phone: '',
     email: '',
@@ -46,11 +49,18 @@ export default function AddTenantPage() {
       setError('Full name, room, start and end dates are required')
       return
     }
+    if (form.tenant_type === 'institution' && !form.organization_name.trim()) {
+      setError('Organization name is required for institutions')
+      return
+    }
     setLoading(true)
     try {
       const tenantRes = await apartmentAPI.createTenant({
         branch_id: activeBranch.id,
         full_name: form.full_name.trim(),
+        tenant_type: form.tenant_type,
+        organization_name: form.organization_name.trim(),
+        contact_person: form.contact_person.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
         id_number: form.id_number.trim(),
@@ -82,7 +92,36 @@ export default function AddTenantPage() {
             {error}
           </div>
         )}
-        <Field label="Full Name *" value={form.full_name} onChange={(v) => setForm({ ...form, full_name: v })} />
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-slate-700 mb-2">Tenant Type *</label>
+          <div className="flex gap-2">
+            {(['individual', 'institution'] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setForm({ ...form, tenant_type: opt })}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+                  form.tenant_type === opt
+                    ? 'bg-cyan-700 text-white border-cyan-700'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {opt === 'individual' ? '👤 Individual' : '🏢 Institution'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {form.tenant_type === 'institution' && (
+          <>
+            <Field label="Organization Name *" value={form.organization_name} onChange={(v) => setForm({ ...form, organization_name: v })} />
+            <Field label="Contact Person" value={form.contact_person} onChange={(v) => setForm({ ...form, contact_person: v })} />
+          </>
+        )}
+        <Field
+          label={form.tenant_type === 'institution' ? 'Display / Legal Name *' : 'Full Name *'}
+          value={form.full_name}
+          onChange={(v) => setForm({ ...form, full_name: v })}
+        />
         <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
         <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
         <Field label="ID Number" value={form.id_number} onChange={(v) => setForm({ ...form, id_number: v })} />

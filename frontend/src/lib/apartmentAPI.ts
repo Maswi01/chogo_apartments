@@ -15,6 +15,9 @@ export interface Tenant {
   id: number
   branch_id: number
   full_name: string
+  tenant_type: 'individual' | 'institution'
+  organization_name: string
+  contact_person: string
   phone: string
   email: string
   id_number: string
@@ -37,6 +40,7 @@ export interface Contract {
   status: 'active' | 'expired' | 'terminated' | 'renewed' | 'upgraded'
   tenant_name?: string
   tenant_phone?: string
+  tenant_type?: 'individual' | 'institution'
   room_code?: string
   invoice_total?: number
   paid_total?: number

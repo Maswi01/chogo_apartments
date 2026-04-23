@@ -14,13 +14,16 @@ type Room struct {
 }
 
 type Tenant struct {
-	ID        int       `json:"id"`
-	BranchID  int       `json:"branch_id"`
-	FullName  string    `json:"full_name"`
-	Phone     string    `json:"phone"`
-	Email     string    `json:"email"`
-	IDNumber  string    `json:"id_number"`
-	CreatedAt time.Time `json:"created_at"`
+	ID               int       `json:"id"`
+	BranchID         int       `json:"branch_id"`
+	FullName         string    `json:"full_name"`
+	TenantType       string    `json:"tenant_type"`
+	OrganizationName string    `json:"organization_name"`
+	ContactPerson    string    `json:"contact_person"`
+	Phone            string    `json:"phone"`
+	Email            string    `json:"email"`
+	IDNumber         string    `json:"id_number"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type Contract struct {
@@ -39,6 +42,7 @@ type Contract struct {
 	Status           string    `json:"status"`
 	TenantName       string    `json:"tenant_name,omitempty"`
 	TenantPhone      string    `json:"tenant_phone,omitempty"`
+	TenantType       string    `json:"tenant_type,omitempty"`
 	RoomCode         string    `json:"room_code,omitempty"`
 	InvoiceTotal     float64   `json:"invoice_total,omitempty"`
 	PaidTotal        float64   `json:"paid_total,omitempty"`

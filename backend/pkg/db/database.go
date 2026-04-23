@@ -96,6 +96,9 @@ func createTables(db *sql.DB) error {
 		id INT PRIMARY KEY AUTO_INCREMENT,
 		branch_id INT NOT NULL,
 		full_name VARCHAR(255) NOT NULL,
+		tenant_type ENUM('individual','institution') NOT NULL DEFAULT 'individual',
+		organization_name VARCHAR(255),
+		contact_person VARCHAR(255),
 		email VARCHAR(255),
 		phone VARCHAR(20),
 		id_number VARCHAR(50),
@@ -284,6 +287,9 @@ func createTables(db *sql.DB) error {
 	runMigration(db, "ALTER TABLE contracts ADD COLUMN parent_contract_id INT NULL")
 	runMigration(db, "ALTER TABLE contracts MODIFY COLUMN status ENUM('active','expired','terminated','renewed','upgraded') DEFAULT 'active'")
 	runMigration(db, "ALTER TABLE contracts ADD INDEX idx_contracts_parent (parent_contract_id)")
+	runMigration(db, "ALTER TABLE tenants ADD COLUMN tenant_type ENUM('individual','institution') NOT NULL DEFAULT 'individual'")
+	runMigration(db, "ALTER TABLE tenants ADD COLUMN organization_name VARCHAR(255)")
+	runMigration(db, "ALTER TABLE tenants ADD COLUMN contact_person VARCHAR(255)")
 
 	return nil
 }
