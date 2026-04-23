@@ -193,14 +193,18 @@ func createTables(db *sql.DB) error {
 		end_date DATE NOT NULL,
 		monthly_rent DECIMAL(12,2) NOT NULL DEFAULT 0,
 		deposit DECIMAL(12,2) NOT NULL DEFAULT 0,
-		status ENUM('active','expired','terminated') DEFAULT 'active',
+		billing_cycle ENUM('monthly','quarterly','semi_annual','annual') NOT NULL DEFAULT 'monthly',
+		cycle_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+		parent_contract_id INT NULL,
+		status ENUM('active','expired','terminated','renewed','upgraded') DEFAULT 'active',
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE,
 		INDEX idx_contracts_branch (branch_id),
 		INDEX idx_contracts_tenant (tenant_id),
 		INDEX idx_contracts_room (room_id),
-		INDEX idx_contracts_dates (end_date, status)
+		INDEX idx_contracts_dates (end_date, status),
+		INDEX idx_contracts_parent (parent_contract_id)
 	);
 
 	CREATE TABLE IF NOT EXISTS invoices (
@@ -274,7 +278,26 @@ func createTables(db *sql.DB) error {
 		}
 	}
 
+	// Idempotent migrations for older deployments missing new columns.
+	runMigration(db, "ALTER TABLE contracts ADD COLUMN billing_cycle ENUM('monthly','quarterly','semi_annual','annual') NOT NULL DEFAULT 'monthly'")
+	runMigration(db, "ALTER TABLE contracts ADD COLUMN cycle_amount DECIMAL(12,2) NOT NULL DEFAULT 0")
+	runMigration(db, "ALTER TABLE contracts ADD COLUMN parent_contract_id INT NULL")
+	runMigration(db, "ALTER TABLE contracts MODIFY COLUMN status ENUM('active','expired','terminated','renewed','upgraded') DEFAULT 'active'")
+	runMigration(db, "ALTER TABLE contracts ADD INDEX idx_contracts_parent (parent_contract_id)")
+
 	return nil
+}
+
+// runMigration executes a DDL statement and ignores errors for idempotency
+// (e.g. duplicate column / duplicate key when migration already ran).
+func runMigration(db *sql.DB, stmt string) {
+	if _, err := db.Exec(stmt); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "Duplicate") || strings.Contains(msg, "check that column") {
+			return
+		}
+		fmt.Printf("migration warning: %v\n", err)
+	}
 }
 
 func seedDefaultBranches(db *sql.DB) error {

@@ -24,24 +24,27 @@ type Tenant struct {
 }
 
 type Contract struct {
-	ID           int       `json:"id"`
-	BranchID     int       `json:"branch_id"`
-	TenantID     int       `json:"tenant_id"`
-	RoomID       int       `json:"room_id"`
-	BookingCode  string    `json:"booking_code"`
-	StartDate    string    `json:"start_date"`
-	EndDate      string    `json:"end_date"`
-	MonthlyRent  float64   `json:"monthly_rent"`
-	Deposit      float64   `json:"deposit"`
-	Status       string    `json:"status"`
-	TenantName   string    `json:"tenant_name,omitempty"`
-	TenantPhone  string    `json:"tenant_phone,omitempty"`
-	RoomCode     string    `json:"room_code,omitempty"`
-	InvoiceTotal float64   `json:"invoice_total,omitempty"`
-	PaidTotal    float64   `json:"paid_total,omitempty"`
-	Balance      float64   `json:"balance,omitempty"`
-	DaysLeft     int       `json:"days_left,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID               int       `json:"id"`
+	BranchID         int       `json:"branch_id"`
+	TenantID         int       `json:"tenant_id"`
+	RoomID           int       `json:"room_id"`
+	BookingCode      string    `json:"booking_code"`
+	StartDate        string    `json:"start_date"`
+	EndDate          string    `json:"end_date"`
+	MonthlyRent      float64   `json:"monthly_rent"`
+	Deposit          float64   `json:"deposit"`
+	BillingCycle     string    `json:"billing_cycle"`
+	CycleAmount      float64   `json:"cycle_amount"`
+	ParentContractID *int      `json:"parent_contract_id,omitempty"`
+	Status           string    `json:"status"`
+	TenantName       string    `json:"tenant_name,omitempty"`
+	TenantPhone      string    `json:"tenant_phone,omitempty"`
+	RoomCode         string    `json:"room_code,omitempty"`
+	InvoiceTotal     float64   `json:"invoice_total,omitempty"`
+	PaidTotal        float64   `json:"paid_total,omitempty"`
+	Balance          float64   `json:"balance,omitempty"`
+	DaysLeft         int       `json:"days_left,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type Invoice struct {

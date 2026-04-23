@@ -71,6 +71,8 @@ func main() {
 	r.HandleFunc("/api/tenants", apartmentHandler.CreateTenant).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/contracts", apartmentHandler.ListContracts).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/contracts", apartmentHandler.CreateContract).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/contracts/{id}/renew", apartmentHandler.RenewContract).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/contracts/{id}/upgrade", apartmentHandler.UpgradeContract).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/invoices", apartmentHandler.ListInvoices).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/invoices", apartmentHandler.CreateInvoice).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/payments", apartmentHandler.ListPayments).Methods("GET", "OPTIONS")

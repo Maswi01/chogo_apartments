@@ -182,14 +182,63 @@ func (h *ApartmentHandler) CreateTenant(w http.ResponseWriter, r *http.Request) 
 // ---------- Contracts ----------
 
 type contractIn struct {
-	BranchID    int     `json:"branch_id"`
-	TenantID    int     `json:"tenant_id"`
-	RoomID      int     `json:"room_id"`
-	BookingCode string  `json:"booking_code"`
-	StartDate   string  `json:"start_date"`
-	EndDate     string  `json:"end_date"`
-	MonthlyRent float64 `json:"monthly_rent"`
-	Deposit     float64 `json:"deposit"`
+	BranchID     int     `json:"branch_id"`
+	TenantID     int     `json:"tenant_id"`
+	RoomID       int     `json:"room_id"`
+	BookingCode  string  `json:"booking_code"`
+	StartDate    string  `json:"start_date"`
+	EndDate      string  `json:"end_date"`
+	MonthlyRent  float64 `json:"monthly_rent"`
+	Deposit      float64 `json:"deposit"`
+	BillingCycle string  `json:"billing_cycle"`
+	CycleAmount  float64 `json:"cycle_amount"`
+}
+
+// monthsPerCycle returns how many months a billing cycle covers.
+func monthsPerCycle(cycle string) int {
+	switch cycle {
+	case "quarterly":
+		return 3
+	case "semi_annual":
+		return 6
+	case "annual":
+		return 12
+	default:
+		return 1
+	}
+}
+
+// generateInvoicesForContract creates one invoice per billing period covering
+// the entire contract duration. Called inside a transaction.
+func generateInvoicesForContract(tx *sql.Tx, branchID int, contractID int64, startDate, endDate string, cycleAmount float64, cycle string) error {
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return err
+	}
+	step := monthsPerCycle(cycle)
+	periodIdx := 0
+	for cur := start; !cur.After(end); cur = cur.AddDate(0, step, 0) {
+		periodEnd := cur.AddDate(0, step, -1)
+		if periodEnd.After(end) {
+			periodEnd = end
+		}
+		dueDate := cur.Format("2006-01-02")
+		invNum := "INV-" + strconv.FormatInt(contractID, 10) + "-" + strconv.Itoa(periodIdx+1)
+		if _, err := tx.Exec(
+			`INSERT INTO invoices (branch_id, contract_id, invoice_number, period_start, period_end, amount_due, due_date, status)
+			 VALUES (?,?,?,?,?,?,?,'unpaid')`,
+			branchID, contractID, invNum,
+			cur.Format("2006-01-02"), periodEnd.Format("2006-01-02"),
+			cycleAmount, dueDate); err != nil {
+			return err
+		}
+		periodIdx++
+	}
+	return nil
 }
 
 func (h *ApartmentHandler) CreateContract(w http.ResponseWriter, r *http.Request) {
@@ -202,6 +251,18 @@ func (h *ApartmentHandler) CreateContract(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusBadRequest, "invalid_input", "branch_id, tenant_id, room_id, start_date, end_date required")
 		return
 	}
+	if in.BillingCycle == "" {
+		in.BillingCycle = "monthly"
+	}
+	switch in.BillingCycle {
+	case "monthly", "quarterly", "semi_annual", "annual":
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid_input", "billing_cycle must be monthly|quarterly|semi_annual|annual")
+		return
+	}
+	if in.CycleAmount <= 0 {
+		in.CycleAmount = in.MonthlyRent * float64(monthsPerCycle(in.BillingCycle))
+	}
 
 	tx, err := h.db.Begin()
 	if err != nil {
@@ -211,9 +272,11 @@ func (h *ApartmentHandler) CreateContract(w http.ResponseWriter, r *http.Request
 	defer tx.Rollback()
 
 	res, err := tx.Exec(
-		`INSERT INTO contracts (branch_id, tenant_id, room_id, booking_code, start_date, end_date, monthly_rent, deposit, status)
-		 VALUES (?,?,?,?,?,?,?,?,'active')`,
-		in.BranchID, in.TenantID, in.RoomID, in.BookingCode, in.StartDate, in.EndDate, in.MonthlyRent, in.Deposit)
+		`INSERT INTO contracts (branch_id, tenant_id, room_id, booking_code, start_date, end_date,
+		                       monthly_rent, deposit, billing_cycle, cycle_amount, status)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,'active')`,
+		in.BranchID, in.TenantID, in.RoomID, in.BookingCode, in.StartDate, in.EndDate,
+		in.MonthlyRent, in.Deposit, in.BillingCycle, in.CycleAmount)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
 		return
@@ -225,12 +288,17 @@ func (h *ApartmentHandler) CreateContract(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if err := generateInvoicesForContract(tx, in.BranchID, cid, in.StartDate, in.EndDate, in.CycleAmount, in.BillingCycle); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", "invoice generation failed: "+err.Error())
+		return
+	}
+
 	if err := tx.Commit(); err != nil {
 		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{"id": cid})
+	writeJSON(w, http.StatusCreated, map[string]any{"id": cid, "billing_cycle": in.BillingCycle, "cycle_amount": in.CycleAmount})
 }
 
 func (h *ApartmentHandler) ListContracts(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +309,8 @@ func (h *ApartmentHandler) ListContracts(w http.ResponseWriter, r *http.Request)
 	}
 	statusFilter := r.URL.Query().Get("status")
 	q := `SELECT c.id, c.branch_id, c.tenant_id, c.room_id, COALESCE(c.booking_code,''),
-	             c.start_date, c.end_date, c.monthly_rent, c.deposit, c.status,
+	             c.start_date, c.end_date, c.monthly_rent, c.deposit,
+	             c.billing_cycle, c.cycle_amount, c.parent_contract_id, c.status,
 	             t.full_name, COALESCE(t.phone,''), r.code,
 	             COALESCE((SELECT SUM(amount_due) FROM invoices WHERE contract_id=c.id),0) AS inv_total,
 	             COALESCE((SELECT SUM(amount_paid) FROM invoices WHERE contract_id=c.id),0) AS paid_total,
@@ -269,8 +338,10 @@ func (h *ApartmentHandler) ListContracts(w http.ResponseWriter, r *http.Request)
 	for rows.Next() {
 		var c models.Contract
 		var sd, ed sql.NullString
+		var parentID sql.NullInt64
 		if err := rows.Scan(&c.ID, &c.BranchID, &c.TenantID, &c.RoomID, &c.BookingCode,
-			&sd, &ed, &c.MonthlyRent, &c.Deposit, &c.Status,
+			&sd, &ed, &c.MonthlyRent, &c.Deposit,
+			&c.BillingCycle, &c.CycleAmount, &parentID, &c.Status,
 			&c.TenantName, &c.TenantPhone, &c.RoomCode,
 			&c.InvoiceTotal, &c.PaidTotal, &c.CreatedAt); err != nil {
 			writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
@@ -278,6 +349,10 @@ func (h *ApartmentHandler) ListContracts(w http.ResponseWriter, r *http.Request)
 		}
 		c.StartDate = nullDate(sd)
 		c.EndDate = nullDate(ed)
+		if parentID.Valid {
+			v := int(parentID.Int64)
+			c.ParentContractID = &v
+		}
 		c.Balance = c.InvoiceTotal - c.PaidTotal
 		if t, err := time.Parse("2006-01-02", c.EndDate); err == nil {
 			c.DaysLeft = int(t.Sub(now).Hours() / 24)
@@ -694,3 +769,252 @@ func listTodayPayments(db *sql.DB, branchID int) []models.Payment {
 
 // suppress unused warning helpers
 var _ = nullStr
+
+// ---------- Contract Renewal & Upgrade ----------
+
+type renewIn struct {
+	EndDate      string  `json:"end_date"`
+	MonthlyRent  float64 `json:"monthly_rent"`
+	Deposit      float64 `json:"deposit"`
+	BillingCycle string  `json:"billing_cycle"`
+	CycleAmount  float64 `json:"cycle_amount"`
+	BookingCode  string  `json:"booking_code"`
+}
+
+type upgradeIn struct {
+	NewRoomID     int     `json:"new_room_id"`
+	EffectiveDate string  `json:"effective_date"`
+	EndDate       string  `json:"end_date"`
+	MonthlyRent   float64 `json:"monthly_rent"`
+	Deposit       float64 `json:"deposit"`
+	BillingCycle  string  `json:"billing_cycle"`
+	CycleAmount   float64 `json:"cycle_amount"`
+	BookingCode   string  `json:"booking_code"`
+}
+
+func parseContractActionID(path, suffix string) int {
+	s := strings.TrimPrefix(path, "/api/contracts/")
+	s = strings.TrimSuffix(s, "/"+suffix)
+	id, _ := strconv.Atoi(s)
+	return id
+}
+
+func (h *ApartmentHandler) RenewContract(w http.ResponseWriter, r *http.Request) {
+	id := parseContractActionID(r.URL.Path, "renew")
+	if id == 0 {
+		writeErr(w, http.StatusBadRequest, "invalid_input", "contract id required")
+		return
+	}
+	var in renewIn
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "Invalid body")
+		return
+	}
+	if in.EndDate == "" {
+		writeErr(w, http.StatusBadRequest, "invalid_input", "end_date required")
+		return
+	}
+
+	var (
+		branchID, tenantID, roomID int
+		oldEnd, oldCycle           string
+		oldRent, oldDeposit        float64
+	)
+	if err := h.db.QueryRow(
+		`SELECT branch_id, tenant_id, room_id, end_date, monthly_rent, deposit, billing_cycle
+		 FROM contracts WHERE id=?`, id).
+		Scan(&branchID, &tenantID, &roomID, &oldEnd, &oldRent, &oldDeposit, &oldCycle); err != nil {
+		writeErr(w, http.StatusNotFound, "not_found", "contract not found")
+		return
+	}
+
+	oldEndT, err := time.Parse("2006-01-02", oldEnd)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", "bad existing end_date")
+		return
+	}
+	newStart := oldEndT.AddDate(0, 0, 1).Format("2006-01-02")
+
+	if in.BillingCycle == "" {
+		in.BillingCycle = oldCycle
+	}
+	switch in.BillingCycle {
+	case "monthly", "quarterly", "semi_annual", "annual":
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid_input", "billing_cycle invalid")
+		return
+	}
+	if in.MonthlyRent <= 0 {
+		in.MonthlyRent = oldRent
+	}
+	if in.Deposit <= 0 {
+		in.Deposit = oldDeposit
+	}
+	if in.CycleAmount <= 0 {
+		in.CycleAmount = in.MonthlyRent * float64(monthsPerCycle(in.BillingCycle))
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(
+		`INSERT INTO contracts (branch_id, tenant_id, room_id, booking_code, start_date, end_date,
+		                       monthly_rent, deposit, billing_cycle, cycle_amount, status, parent_contract_id)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,'active',?)`,
+		branchID, tenantID, roomID, in.BookingCode, newStart, in.EndDate,
+		in.MonthlyRent, in.Deposit, in.BillingCycle, in.CycleAmount, id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	newID, _ := res.LastInsertId()
+
+	if _, err := tx.Exec(`UPDATE contracts SET status='renewed' WHERE id=?`, id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+
+	if err := generateInvoicesForContract(tx, branchID, newID, newStart, in.EndDate, in.CycleAmount, in.BillingCycle); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", "invoice generation failed: "+err.Error())
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":            newID,
+		"parent":        id,
+		"start_date":    newStart,
+		"end_date":      in.EndDate,
+		"billing_cycle": in.BillingCycle,
+		"cycle_amount":  in.CycleAmount,
+	})
+}
+
+func (h *ApartmentHandler) UpgradeContract(w http.ResponseWriter, r *http.Request) {
+	id := parseContractActionID(r.URL.Path, "upgrade")
+	if id == 0 {
+		writeErr(w, http.StatusBadRequest, "invalid_input", "contract id required")
+		return
+	}
+	var in upgradeIn
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "Invalid body")
+		return
+	}
+	if in.EffectiveDate == "" || in.EndDate == "" || in.NewRoomID == 0 {
+		writeErr(w, http.StatusBadRequest, "invalid_input", "new_room_id, effective_date, end_date required")
+		return
+	}
+
+	var (
+		branchID, tenantID, oldRoomID int
+		oldRent, oldDeposit           float64
+		oldCycle                      string
+	)
+	if err := h.db.QueryRow(
+		`SELECT branch_id, tenant_id, room_id, monthly_rent, deposit, billing_cycle
+		 FROM contracts WHERE id=?`, id).
+		Scan(&branchID, &tenantID, &oldRoomID, &oldRent, &oldDeposit, &oldCycle); err != nil {
+		writeErr(w, http.StatusNotFound, "not_found", "contract not found")
+		return
+	}
+
+	effT, err := time.Parse("2006-01-02", in.EffectiveDate)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_input", "bad effective_date")
+		return
+	}
+	terminateOn := effT.AddDate(0, 0, -1).Format("2006-01-02")
+
+	if in.BillingCycle == "" {
+		in.BillingCycle = oldCycle
+	}
+	switch in.BillingCycle {
+	case "monthly", "quarterly", "semi_annual", "annual":
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid_input", "billing_cycle invalid")
+		return
+	}
+	if in.MonthlyRent <= 0 {
+		in.MonthlyRent = oldRent
+	}
+	if in.Deposit <= 0 {
+		in.Deposit = oldDeposit
+	}
+	if in.CycleAmount <= 0 {
+		in.CycleAmount = in.MonthlyRent * float64(monthsPerCycle(in.BillingCycle))
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(
+		`UPDATE contracts SET status='upgraded', end_date=? WHERE id=?`,
+		terminateOn, id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE invoices SET status='void'
+		 WHERE contract_id=? AND status='unpaid' AND period_start >= ?`,
+		id, in.EffectiveDate); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+
+	if in.NewRoomID != oldRoomID {
+		if _, err := tx.Exec(`UPDATE rooms SET status='vacant' WHERE id=? AND branch_id=?`, oldRoomID, branchID); err != nil {
+			writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+			return
+		}
+		if _, err := tx.Exec(`UPDATE rooms SET status='occupied' WHERE id=? AND branch_id=?`, in.NewRoomID, branchID); err != nil {
+			writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+			return
+		}
+	}
+
+	res, err := tx.Exec(
+		`INSERT INTO contracts (branch_id, tenant_id, room_id, booking_code, start_date, end_date,
+		                       monthly_rent, deposit, billing_cycle, cycle_amount, status, parent_contract_id)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,'active',?)`,
+		branchID, tenantID, in.NewRoomID, in.BookingCode, in.EffectiveDate, in.EndDate,
+		in.MonthlyRent, in.Deposit, in.BillingCycle, in.CycleAmount, id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	newID, _ := res.LastInsertId()
+
+	if err := generateInvoicesForContract(tx, branchID, newID, in.EffectiveDate, in.EndDate, in.CycleAmount, in.BillingCycle); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", "invoice generation failed: "+err.Error())
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":             newID,
+		"parent":         id,
+		"new_room_id":    in.NewRoomID,
+		"effective_date": in.EffectiveDate,
+		"end_date":       in.EndDate,
+		"billing_cycle":  in.BillingCycle,
+		"cycle_amount":   in.CycleAmount,
+	})
+}
