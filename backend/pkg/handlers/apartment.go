@@ -568,15 +568,19 @@ func (h *ApartmentHandler) ListPayments(w http.ResponseWriter, r *http.Request) 
 	out := make([]models.Payment, 0)
 	for rows.Next() {
 		var p models.Payment
-		var RecordedBy, &p.RecordedByName,
-			&p.pd sql.NullString
+		var recordedBy sql.NullInt64
+		var pd sql.NullString
 		if err := rows.Scan(&p.ID, &p.BranchID, &p.TenantID, &p.ContractID, &p.InvoiceID,
 			&p.Amount, &pd, &p.ReceiptNumber, &p.PaymentMethod, &p.Notes,
+			&recordedBy, &p.RecordedByName,
 			&p.TenantName, &p.RoomCode, &p.CreatedAt); err != nil {
 			writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
 			return
 		}
 		p.PaymentDate = nullDate(pd)
+		if recordedBy.Valid {
+			p.RecordedBy = int(recordedBy.Int64)
+		}
 		out = append(out, p)
 	}
 	writeJSON(w, http.StatusOK, out)
