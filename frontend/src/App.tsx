@@ -1,42 +1,54 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { BranchProvider } from './context/BranchContext'
 import { PrivateRoute } from './components/PrivateRoute'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import AddBranchPage from './pages/AddBranchPage'
+import BranchesPage from './pages/BranchesPage'
 
 function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/register"
-          element={
-            <PrivateRoute>
-              <RegisterPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <DashboardPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/branches/new"
-          element={
-            <PrivateRoute>
-              <AddBranchPage />
-            </PrivateRoute>
-          }
-        />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <BranchProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/register"
+            element={
+              <PrivateRoute>
+                <RegisterPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <DashboardPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/branches"
+            element={
+              <PrivateRoute>
+                <BranchesPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/branches/new"
+            element={
+              <PrivateRoute>
+                <AddBranchPage />
+              </PrivateRoute>
+            }
+          />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </BranchProvider>
     </AuthProvider>
   )
 }

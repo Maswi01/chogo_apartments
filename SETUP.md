@@ -294,6 +294,7 @@ VITE_API_URL=/api
 
    - Do not point Nginx at a path under `/root/...`.
    - Copy the frontend build output to a readable web root such as `/var/www/chogo_apartments/frontend/dist`.
+   - The destination used by your frontend deploy script must match the Nginx `root` exactly. If Nginx serves `/srv/chogo_apartments/dist`, your deploy script must sync into `/srv/chogo_apartments/dist/`, not `/srv/chogo_apartments/`.
    - Ensure the files are readable by Nginx, for example:
 
    ```bash
@@ -304,6 +305,8 @@ VITE_API_URL=/api
    sudo find /var/www/chogo_apartments -type f -exec chmod 644 {} \;
    sudo nginx -t && sudo systemctl reload nginx
    ```
+
+   Example VPS deploy scripts are included in [deploy/deploy-backend-apartments.example.sh](/workspaces/chogo_apartments/deploy/deploy-backend-apartments.example.sh) and [deploy/deploy-frontend-apartments.example.sh](/workspaces/chogo_apartments/deploy/deploy-frontend-apartments.example.sh).
 
    The important part is:
 
