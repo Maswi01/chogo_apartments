@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
+import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type OfficeTransaction, type Payment } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
 
@@ -51,6 +52,7 @@ export default function CashFlowStatementPage() {
 
   return (
     <DashboardLayout title="Cash Flow Statement">
+      <DocumentHeader title="Cash Flow Statement" subtitle="Monthly inflow vs outflow" />
       {loading ? (
         <p className="text-slate-500">Loading...</p>
       ) : (

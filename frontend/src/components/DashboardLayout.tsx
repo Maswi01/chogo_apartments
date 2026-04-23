@@ -159,8 +159,8 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
           </div>
         </aside>
 
-        <main className="flex-1 px-8 py-8">
-          <header className="mb-6 rounded-xl bg-white px-6 py-4 shadow-sm border border-slate-200 flex items-center justify-between">
+        <main className="flex-1 px-8 py-8 dashboard-main">
+          <header className="dashboard-topbar mb-6 rounded-xl bg-white px-6 py-4 shadow-sm border border-slate-200 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-500">
                 Branch: <span className="font-semibold text-slate-700">{activeBranch?.name ?? '—'}</span>
@@ -190,7 +190,7 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
             </div>
           </header>
 
-          <section className="rounded-xl bg-white p-6 shadow-sm border border-slate-200">{children}</section>
+          <section className="rounded-xl bg-white p-6 shadow-sm border border-slate-200 print:rounded-none print:shadow-none print:border-0 print:p-0">{children}</section>
         </main>
       </div>
     </div>

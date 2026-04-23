@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
+import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type Invoice, type Payment } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
 
@@ -61,6 +62,7 @@ export default function RentMonthlyReportPage() {
 
   return (
     <DashboardLayout title="Rent Monthly Report">
+      <DocumentHeader title="Rent Monthly Report" subtitle="Invoices vs collections per month" />
       {loading ? (
         <p className="text-slate-500">Loading...</p>
       ) : (

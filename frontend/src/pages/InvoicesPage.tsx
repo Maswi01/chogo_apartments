@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
+import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type Contract, type Invoice } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
 
@@ -31,6 +32,7 @@ export default function InvoicesPage() {
 
   return (
     <DashboardLayout title="Tenant Invoices">
+      <DocumentHeader title="Tenant Invoices" />
       <div className="mb-4 flex justify-end">
         <button
           onClick={() => setShowInvoiceForm(true)}

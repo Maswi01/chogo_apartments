@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
+import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type Payment, type Tenant } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
 
@@ -33,6 +34,7 @@ export default function StatementsPage() {
 
   return (
     <DashboardLayout title="Tenant Statement">
+      <DocumentHeader title="Tenant Statement" />
       <div className="mb-4 max-w-md">
         <label className="block text-sm font-medium text-slate-700 mb-1">Select Tenant</label>
         <select

@@ -5,3 +5,44 @@
 body {
   @apply bg-gray-50;
 }
+
+/* When printing reports, hide everything except the document area
+   and let the header/content fill the page like a real letterhead. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+  body {
+    background: #fff !important;
+  }
+  /* Hide the sidebar and dashboard chrome */
+  aside,
+  header.dashboard-topbar,
+  .no-print {
+    display: none !important;
+  }
+  /* Promote the main content area to full width */
+  .dashboard-main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  /* Make tables print cleanly */
+  table {
+    page-break-inside: auto;
+    border-collapse: collapse !important;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  /* Repeat the document header on every printed page */
+  .document-header {
+    display: block;
+  }
+}

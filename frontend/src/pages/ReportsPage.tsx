@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
+import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type BranchDashboardData, type OfficeTransaction, type Payment } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
 
@@ -42,6 +43,7 @@ export default function ReportsPage() {
 
   return (
     <DashboardLayout title={`Office Report - ${dash.branch_name}`}>
+      <DocumentHeader title="Office Report - Summary" subtitle={dash.branch_name} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card label="Active Contracts" value={fmt(dash.active_contracts)} tone="sky" />
         <Card label="Unpaid Active" value={fmt(dash.unpaid_active)} tone="rose" />

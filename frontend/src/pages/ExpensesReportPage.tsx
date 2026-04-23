@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
+import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type OfficeTransaction } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
 
@@ -35,6 +36,7 @@ export default function ExpensesReportPage() {
 
   return (
     <DashboardLayout title="Expenses Report">
+      <DocumentHeader title="Expenses Report (by Category)" />
       {loading ? (
         <p className="text-slate-500">Loading...</p>
       ) : (

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
+import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type OfficeTransaction } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
 
@@ -33,6 +34,7 @@ export default function ExpensesStatementPage() {
 
   return (
     <DashboardLayout title="Expenses Statement">
+      <DocumentHeader title="Expenses Statement" period={from || to ? `${from || '…'} to ${to || '…'}` : 'All dates'} />
       {loading ? (
         <p className="text-slate-500">Loading...</p>
       ) : (
