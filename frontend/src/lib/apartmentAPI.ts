@@ -154,6 +154,10 @@ export const apartmentAPI = {
     cycle_amount?: number
     booking_code?: string
   }) => apiClient.post<{ id: number; parent: number }>(`/contracts/${id}/upgrade`, data),
+  terminateContract: (id: number, data: {
+    end_date?: string
+    reason?: string
+  }) => apiClient.post<{ id: number; status: string }>(`/contracts/${id}/terminate`, data),
 
   // Invoices
   listInvoices: (branchId: number, status?: string) =>

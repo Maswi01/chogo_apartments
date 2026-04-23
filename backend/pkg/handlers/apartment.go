@@ -1018,3 +1018,64 @@ func (h *ApartmentHandler) UpgradeContract(w http.ResponseWriter, r *http.Reques
 		"cycle_amount":   in.CycleAmount,
 	})
 }
+
+type terminateIn struct {
+	EndDate string `json:"end_date"`
+	Reason  string `json:"reason"`
+}
+
+func (h *ApartmentHandler) TerminateContract(w http.ResponseWriter, r *http.Request) {
+	id := parseContractActionID(r.URL.Path, "terminate")
+	if id == 0 {
+		writeErr(w, http.StatusBadRequest, "invalid_input", "contract id required")
+		return
+	}
+	var in terminateIn
+	_ = json.NewDecoder(r.Body).Decode(&in)
+	if in.EndDate == "" {
+		in.EndDate = time.Now().Format("2006-01-02")
+	}
+
+	var branchID, roomID int
+	if err := h.db.QueryRow(`SELECT branch_id, room_id FROM contracts WHERE id=?`, id).
+		Scan(&branchID, &roomID); err != nil {
+		writeErr(w, http.StatusNotFound, "not_found", "contract not found")
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(
+		`UPDATE contracts SET status='terminated', end_date=? WHERE id=?`,
+		in.EndDate, id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	if _, err := tx.Exec(
+		`UPDATE invoices SET status='void'
+ WHERE contract_id=? AND status='unpaid' AND period_start > ?`,
+		id, in.EndDate); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	if _, err := tx.Exec(`UPDATE rooms SET status='vacant' WHERE id=? AND branch_id=?`, roomID, branchID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":       id,
+		"end_date": in.EndDate,
+		"status":   "terminated",
+		"reason":   in.Reason,
+	})
+}

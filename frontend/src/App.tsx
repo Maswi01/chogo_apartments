@@ -13,7 +13,6 @@ import RoomsPage from './pages/RoomsPage'
 import AddRoomPage from './pages/AddRoomPage'
 import AddTenantPage from './pages/AddTenantPage'
 import InvoicesPage from './pages/InvoicesPage'
-import ContractsPage from './pages/ContractsPage'
 import ContractAgreementPage from './pages/ContractAgreementPage'
 import StatementsPage from './pages/StatementsPage'
 import TransactionsPage from './pages/TransactionsPage'
@@ -46,7 +45,6 @@ function App() {
           <Route path="/rooms" element={branchOnly(<RoomsPage />)} />
           <Route path="/rooms/new" element={branchOnly(<AddRoomPage />)} />
           <Route path="/tenants/new" element={branchOnly(<AddTenantPage />)} />
-          <Route path="/contracts" element={branchOnly(<ContractsPage />)} />
           <Route path="/contracts/:id/agreement" element={branchOnly(<ContractAgreementPage />)} />
           <Route path="/invoices" element={branchOnly(<InvoicesPage />)} />
           <Route path="/statements" element={branchOnly(<StatementsPage />)} />
