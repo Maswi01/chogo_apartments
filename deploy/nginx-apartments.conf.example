@@ -2,7 +2,8 @@ server {
     listen 80;
     server_name apartments.chogocredit.co.tz;
 
-    root /root/workspace/chogo_apartments/frontend/dist;
+    # Serve the built frontend from a world-readable web root, not from /root.
+    root /var/www/chogo_apartments/frontend/dist;
     index index.html;
 
     location /api/ {

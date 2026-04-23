@@ -290,6 +290,21 @@ VITE_API_URL=/api
 
    For `https://apartments.chogocredit.co.tz/`, use the example in `deploy/nginx-apartments.conf.example`.
 
+   Important:
+
+   - Do not point Nginx at a path under `/root/...`.
+   - Copy the frontend build output to a readable web root such as `/var/www/chogo_apartments/frontend/dist`.
+   - Ensure the files are readable by Nginx, for example:
+
+   ```bash
+   sudo mkdir -p /var/www/chogo_apartments/frontend/dist
+   sudo rsync -av --delete frontend/dist/ /var/www/chogo_apartments/frontend/dist/
+   sudo chown -R www-data:www-data /var/www/chogo_apartments
+   sudo find /var/www/chogo_apartments -type d -exec chmod 755 {} \;
+   sudo find /var/www/chogo_apartments -type f -exec chmod 644 {} \;
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
    The important part is:
 
    ```nginx
