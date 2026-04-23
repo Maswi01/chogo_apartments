@@ -19,6 +19,7 @@ export default function AddTenantPage() {
     end_date: '',
     monthly_rent: '',
     deposit: '',
+    billing_cycle: 'monthly' as 'monthly' | 'quarterly' | 'semi_annual' | 'annual',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,6 +64,7 @@ export default function AddTenantPage() {
         end_date: form.end_date,
         monthly_rent: Number(form.monthly_rent) || 0,
         deposit: Number(form.deposit) || 0,
+        billing_cycle: form.billing_cycle,
       })
       navigate('/dashboard')
     } catch (err: any) {
@@ -126,6 +128,26 @@ export default function AddTenantPage() {
           onChange={(v) => setForm({ ...form, deposit: v })}
         />
 
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Billing Cycle *</label>
+          <select
+            value={form.billing_cycle}
+            onChange={(e) => setForm({ ...form, billing_cycle: e.target.value as any })}
+            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-sky-300"
+          >
+            <option value="monthly">Monthly (1 month)</option>
+            <option value="quarterly">Quarterly (3 months)</option>
+            <option value="semi_annual">Semi-Annual (6 months)</option>
+            <option value="annual">Annual (12 months)</option>
+          </select>
+        </div>
+        <div className="flex items-end">
+          <div className="text-sm text-slate-600 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 w-full">
+            Each invoice: <strong>{(Number(form.monthly_rent) || 0) * cycleMonths(form.billing_cycle)}</strong> TZS
+            <span className="text-slate-500"> ({cycleMonths(form.billing_cycle)} month{cycleMonths(form.billing_cycle) > 1 ? 's' : ''})</span>
+          </div>
+        </div>
+
         <div className="md:col-span-2">
           <button
             type="submit"
@@ -138,6 +160,15 @@ export default function AddTenantPage() {
       </form>
     </DashboardLayout>
   )
+}
+
+function cycleMonths(c: string): number {
+  switch (c) {
+    case 'quarterly': return 3
+    case 'semi_annual': return 6
+    case 'annual': return 12
+    default: return 1
+  }
 }
 
 function Field({

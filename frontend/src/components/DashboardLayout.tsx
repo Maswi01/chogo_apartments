@@ -71,6 +71,9 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
       <NavLink to="/tenants/new" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
         Register Tenant
       </NavLink>
+      <NavLink to="/contracts" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+        Contracts
+      </NavLink>
       <NavLink to="/invoices" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
         Tenant Invoice
       </NavLink>

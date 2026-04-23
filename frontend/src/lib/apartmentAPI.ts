@@ -31,7 +31,10 @@ export interface Contract {
   end_date: string
   monthly_rent: number
   deposit: number
-  status: 'active' | 'expired' | 'terminated'
+  billing_cycle: 'monthly' | 'quarterly' | 'semi_annual' | 'annual'
+  cycle_amount: number
+  parent_contract_id?: number | null
+  status: 'active' | 'expired' | 'terminated' | 'renewed' | 'upgraded'
   tenant_name?: string
   tenant_phone?: string
   room_code?: string
@@ -133,6 +136,24 @@ export const apartmentAPI = {
     apiClient.get<Contract[]>('/contracts', { params: { branch_id: branchId, status } }),
   createContract: (data: Partial<Contract>) =>
     apiClient.post<{ id: number }>('/contracts', data),
+  renewContract: (id: number, data: {
+    end_date: string
+    monthly_rent?: number
+    deposit?: number
+    billing_cycle?: Contract['billing_cycle']
+    cycle_amount?: number
+    booking_code?: string
+  }) => apiClient.post<{ id: number; parent: number }>(`/contracts/${id}/renew`, data),
+  upgradeContract: (id: number, data: {
+    new_room_id: number
+    effective_date: string
+    end_date: string
+    monthly_rent?: number
+    deposit?: number
+    billing_cycle?: Contract['billing_cycle']
+    cycle_amount?: number
+    booking_code?: string
+  }) => apiClient.post<{ id: number; parent: number }>(`/contracts/${id}/upgrade`, data),
 
   // Invoices
   listInvoices: (branchId: number, status?: string) =>
