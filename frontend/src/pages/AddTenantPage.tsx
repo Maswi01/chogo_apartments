@@ -36,6 +36,16 @@ export default function AddTenantPage() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Track whether the user has manually edited end_date so we stop overwriting it.
+  const [endDateTouched, setEndDateTouched] = useState(false)
+
+  // Auto-fill end_date from start_date + billing_cycle (one full billing period − 1 day).
+  useEffect(() => {
+    if (endDateTouched) return
+    if (!form.start_date) return
+    const computed = addMonthsMinusDay(form.start_date, cycleMonths(form.billing_cycle))
+    setForm((f) => (f.end_date === computed ? f : { ...f, end_date: computed }))
+  }, [form.start_date, form.billing_cycle, endDateTouched])
 
   useEffect(() => {
     if (!activeBranch) return
@@ -292,7 +302,7 @@ export default function AddTenantPage() {
             </div>
             <Field label="Booking Code" value={form.booking_code} onChange={(v) => setForm({ ...form, booking_code: v })} />
             <Field label="Start Date *" type="date" value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} />
-            <Field label="End Date *" type="date" value={form.end_date} onChange={(v) => setForm({ ...form, end_date: v })} />
+            <Field label="End Date *" type="date" value={form.end_date} onChange={(v) => { setEndDateTouched(true); setForm({ ...form, end_date: v }) }} />
             <Field label="Monthly Rent" type="number" value={form.monthly_rent} onChange={(v) => setForm({ ...form, monthly_rent: v })} />
             <Field label="Deposit" type="number" value={form.deposit} onChange={(v) => setForm({ ...form, deposit: v })} />
             <div>
@@ -338,6 +348,16 @@ function cycleMonths(c: string): number {
     case 'annual': return 12
     default: return 1
   }
+}
+
+// Returns YYYY-MM-DD = start + months − 1 day. Handles month-end overflow.
+function addMonthsMinusDay(startISO: string, months: number): string {
+  const [y, m, d] = startISO.split('-').map(Number)
+  if (!y || !m || !d) return ''
+  // Move forward `months` then subtract 1 day, all in UTC to avoid TZ shift.
+  const target = new Date(Date.UTC(y, m - 1 + months, d))
+  target.setUTCDate(target.getUTCDate() - 1)
+  return target.toISOString().slice(0, 10)
 }
 
 function Field({

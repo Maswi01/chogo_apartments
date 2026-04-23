@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import DashboardLayout from '../components/DashboardLayout'
 import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type Contract, type Invoice } from '../lib/apartmentAPI'
@@ -88,14 +89,23 @@ export default function InvoicesPage() {
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {inv.status !== 'paid' && (
-                      <button
-                        onClick={() => setShowPayForm(inv)}
-                        className="text-xs font-semibold text-sky-700 hover:text-sky-900"
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        to={`/invoices/${inv.id}/print`}
+                        target="_blank"
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900"
                       >
-                        Pay
-                      </button>
-                    )}
+                        🖨 Print
+                      </Link>
+                      {inv.status !== 'paid' && (
+                        <button
+                          onClick={() => setShowPayForm(inv)}
+                          className="text-xs font-semibold text-sky-700 hover:text-sky-900"
+                        >
+                          Pay
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

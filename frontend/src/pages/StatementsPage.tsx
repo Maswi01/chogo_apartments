@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import DashboardLayout from '../components/DashboardLayout'
 import DocumentHeader from '../components/DocumentHeader'
 import apartmentAPI, { type Payment, type Tenant } from '../lib/apartmentAPI'
@@ -72,6 +73,7 @@ export default function StatementsPage() {
                   <th className="px-3 py-2 text-left">Method</th>
                   <th className="px-3 py-2 text-left">Notes</th>
                   <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-right print:hidden">Receipt</th>
                 </tr>
               </thead>
               <tbody>
@@ -83,6 +85,9 @@ export default function StatementsPage() {
                     <td className="px-3 py-2">{p.payment_method || '-'}</td>
                     <td className="px-3 py-2 text-slate-500">{p.notes}</td>
                     <td className="px-3 py-2 text-right font-semibold">{fmt(p.amount)}</td>
+                    <td className="px-3 py-2 text-right print:hidden">
+                      <Link to={`/payments/${p.id}/receipt`} target="_blank" className="text-xs font-semibold text-slate-600 hover:text-slate-900">🖨 Print</Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

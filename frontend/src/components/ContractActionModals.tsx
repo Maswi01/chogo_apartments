@@ -1,7 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import apartmentAPI, { type Contract, type Room } from '../lib/apartmentAPI'
 
 export type Cycle = Contract['billing_cycle']
+
+// Returns YYYY-MM-DD = start + months − 1 day. Handles month-end overflow via UTC arithmetic.
+export function addMonthsMinusDay(startISO: string, months: number): string {
+  const [y, m, d] = startISO.split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const target = new Date(Date.UTC(y, m - 1 + months, d))
+  target.setUTCDate(target.getUTCDate() - 1)
+  return target.toISOString().slice(0, 10)
+}
+
+// Returns YYYY-MM-DD = base + 1 day.
+export function addOneDay(baseISO: string): string {
+  const [y, m, d] = baseISO.split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const t = new Date(Date.UTC(y, m - 1, d + 1))
+  return t.toISOString().slice(0, 10)
+}
 
 export const cycleLabel: Record<Cycle, string> = {
   monthly: 'Monthly',
@@ -61,6 +78,16 @@ export function RenewModal({ contract, onClose, onDone }: { contract: Contract; 
   })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [endTouched, setEndTouched] = useState(false)
+
+  // Auto-fill end_date = (contract.end_date + 1 day) + cycleMonths − 1 day until user edits it.
+  useEffect(() => {
+    if (endTouched) return
+    const start = addOneDay(contract.end_date)
+    if (!start) return
+    const computed = addMonthsMinusDay(start, cycleMonths(form.billing_cycle))
+    setForm((f) => (f.end_date === computed ? f : { ...f, end_date: computed }))
+  }, [contract.end_date, form.billing_cycle, endTouched])
 
   const submit = async () => {
     if (!form.end_date) { setErr('End date required'); return }
@@ -88,7 +115,7 @@ export function RenewModal({ contract, onClose, onDone }: { contract: Contract; 
         <p className="text-sm text-slate-600">
           New contract starts the day after current end date (<strong>{contract.end_date}</strong>).
         </p>
-        <Field label="New End Date *" type="date" value={form.end_date} onChange={(v) => setForm({ ...form, end_date: v })} />
+        <Field label="New End Date *" type="date" value={form.end_date} onChange={(v) => { setEndTouched(true); setForm({ ...form, end_date: v }) }} />
         <Field label="Monthly Rent" type="number" value={form.monthly_rent} onChange={(v) => setForm({ ...form, monthly_rent: v })} />
         <Field label="Deposit" type="number" value={form.deposit} onChange={(v) => setForm({ ...form, deposit: v })} />
         <CycleSelect value={form.billing_cycle} onChange={(v) => setForm({ ...form, billing_cycle: v })} />
@@ -119,6 +146,15 @@ export function UpgradeModal({ contract, rooms, onClose, onDone }: { contract: C
   })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [endTouched, setEndTouched] = useState(false)
+
+  // Auto-fill end_date = effective_date + cycleMonths − 1 day until user edits it.
+  useEffect(() => {
+    if (endTouched) return
+    if (!form.effective_date) return
+    const computed = addMonthsMinusDay(form.effective_date, cycleMonths(form.billing_cycle))
+    setForm((f) => (f.end_date === computed ? f : { ...f, end_date: computed }))
+  }, [form.effective_date, form.billing_cycle, endTouched])
 
   const onRoom = (id: string) => {
     const r = rooms.find((rm) => rm.id === Number(id))
@@ -165,7 +201,7 @@ export function UpgradeModal({ contract, rooms, onClose, onDone }: { contract: C
           </select>
         </div>
         <Field label="Effective Date *" type="date" value={form.effective_date} onChange={(v) => setForm({ ...form, effective_date: v })} />
-        <Field label="New End Date *" type="date" value={form.end_date} onChange={(v) => setForm({ ...form, end_date: v })} />
+        <Field label="New End Date *" type="date" value={form.end_date} onChange={(v) => { setEndTouched(true); setForm({ ...form, end_date: v }) }} />
         <Field label="Monthly Rent" type="number" value={form.monthly_rent} onChange={(v) => setForm({ ...form, monthly_rent: v })} />
         <Field label="Additional Deposit" type="number" value={form.deposit} onChange={(v) => setForm({ ...form, deposit: v })} />
         <CycleSelect value={form.billing_cycle} onChange={(v) => setForm({ ...form, billing_cycle: v })} />

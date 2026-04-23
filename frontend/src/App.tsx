@@ -13,6 +13,8 @@ import RoomsPage from './pages/RoomsPage'
 import AddRoomPage from './pages/AddRoomPage'
 import AddTenantPage from './pages/AddTenantPage'
 import InvoicesPage from './pages/InvoicesPage'
+import InvoicePrintPage from './pages/InvoicePrintPage'
+import ReceiptPrintPage from './pages/ReceiptPrintPage'
 import ContractAgreementPage from './pages/ContractAgreementPage'
 import TenantsPage from './pages/TenantsPage'
 import StatementsPage from './pages/StatementsPage'
@@ -49,6 +51,8 @@ function App() {
           <Route path="/tenants" element={branchOnly(<TenantsPage />)} />
           <Route path="/contracts/:id/agreement" element={branchOnly(<ContractAgreementPage />)} />
           <Route path="/invoices" element={branchOnly(<InvoicesPage />)} />
+          <Route path="/invoices/:id/print" element={branchOnly(<InvoicePrintPage />)} />
+          <Route path="/payments/:id/receipt" element={branchOnly(<ReceiptPrintPage />)} />
           <Route path="/statements" element={branchOnly(<StatementsPage />)} />
           <Route path="/transactions" element={branchOnly(<TransactionsPage />)} />
           <Route path="/reports" element={branchOnly(<ReportsPage />)} />
