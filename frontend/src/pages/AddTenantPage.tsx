@@ -12,6 +12,11 @@ export default function AddTenantPage() {
   const existingTenantId = params.get('existing') || ''
   const [rooms, setRooms] = useState<Room[]>([])
   const [existingTenant, setExistingTenant] = useState<Tenant | null>(null)
+  const [tenantOptions, setTenantOptions] = useState<Tenant[]>([])
+  // When entering via a Room shortcut, default to picking an existing tenant.
+  const [tenantMode, setTenantMode] = useState<'existing' | 'new'>(
+    preRoomId && !existingTenantId ? 'existing' : 'new'
+  )
   const [createContract, setCreateContract] = useState<boolean>(!!preRoomId || !!existingTenantId)
   const [form, setForm] = useState({
     tenant_type: 'individual' as 'individual' | 'institution',
@@ -63,6 +68,34 @@ export default function AddTenantPage() {
       }))
     })
   }, [activeBranch?.id, existingTenantId])
+
+  // Load tenants list for the in-page chooser when arriving via Room shortcut.
+  useEffect(() => {
+    if (!activeBranch || !preRoomId || existingTenantId) return
+    apartmentAPI.listTenants(activeBranch.id).then((r) => {
+      setTenantOptions(r.data || [])
+    })
+  }, [activeBranch?.id, preRoomId, existingTenantId])
+
+  const pickExistingTenant = (id: string) => {
+    if (!id) {
+      setExistingTenant(null)
+      return
+    }
+    const t = tenantOptions.find((x) => x.id === Number(id))
+    if (!t) return
+    setExistingTenant(t)
+    setForm((f) => ({
+      ...f,
+      tenant_type: t.tenant_type,
+      organization_name: t.organization_name || '',
+      contact_person: t.contact_person || '',
+      full_name: t.full_name,
+      phone: t.phone || '',
+      email: t.email || '',
+      id_number: t.id_number || '',
+    }))
+  }
 
   const onRoomChange = (id: string) => {
     const room = rooms.find((r) => r.id === Number(id))
@@ -138,6 +171,43 @@ export default function AddTenantPage() {
         {error && (
           <div className="md:col-span-2 p-3 bg-rose-50 border border-rose-200 rounded text-sm text-rose-700">
             {error}
+          </div>
+        )}
+        {preRoomId && !existingTenantId && (
+          <div className="md:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-slate-700">Tenant:</span>
+              <button
+                type="button"
+                onClick={() => { setTenantMode('existing') }}
+                className={`px-3 py-1.5 rounded text-sm font-medium border ${tenantMode === 'existing' ? 'bg-cyan-700 text-white border-cyan-700' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+              >
+                Existing tenant
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTenantMode('new'); setExistingTenant(null) }}
+                className={`px-3 py-1.5 rounded text-sm font-medium border ${tenantMode === 'new' ? 'bg-cyan-700 text-white border-cyan-700' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+              >
+                + Create new tenant
+              </button>
+            </div>
+            {tenantMode === 'existing' && (
+              <select
+                value={existingTenant?.id ?? ''}
+                onChange={(e) => pickExistingTenant(e.target.value)}
+                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+              >
+                <option value="">— Choose tenant —</option>
+                {tenantOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.tenant_type === 'institution' ? '🏢' : '👤'} {t.full_name}
+                    {t.organization_name ? ` (${t.organization_name})` : ''}
+                    {t.phone ? ` · ${t.phone}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         )}
         {existingTenant ? (
