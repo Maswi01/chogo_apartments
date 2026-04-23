@@ -5,6 +5,7 @@ import { PrivateRoute } from './components/PrivateRoute'
 import { AdminOnly, BranchOnly } from './components/BranchGuards'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import ExpenseCategoriesPage from './pages/ExpenseCategoriesPage'
 import DashboardPage from './pages/DashboardPage'
 import AddBranchPage from './pages/AddBranchPage'
 import BranchesPage from './pages/BranchesPage'
@@ -37,6 +38,7 @@ function App() {
           <Route path="/register" element={adminOnly(<RegisterPage />)} />
           <Route path="/branches" element={adminOnly(<BranchesPage />)} />
           <Route path="/branches/new" element={adminOnly(<AddBranchPage />)} />
+          <Route path="/expense-categories" element={adminOnly(<ExpenseCategoriesPage />)} />
 
           {/* Branch only (not Administration) */}
           <Route path="/rooms" element={branchOnly(<RoomsPage />)} />

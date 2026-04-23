@@ -52,6 +52,9 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
           <NavLink to="/register" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
             Register Staff
           </NavLink>
+          <NavLink to="/expense-categories" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
+            Expense Categories
+          </NavLink>
         </div>
       </div>
     </>

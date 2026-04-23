@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import DashboardLayout from '../components/DashboardLayout'
 import apartmentAPI, { type OfficeTransaction } from '../lib/apartmentAPI'
+import expenseCategoryAPI, { type ExpenseCategory } from '../lib/expenseCategoryAPI'
 import { useBranches } from '../context/BranchContext'
 
 const fmt = (n: number) => new Intl.NumberFormat().format(n)
@@ -8,6 +9,7 @@ const fmt = (n: number) => new Intl.NumberFormat().format(n)
 export default function TransactionsPage() {
   const { activeBranch } = useBranches()
   const [items, setItems] = useState<OfficeTransaction[]>([])
+  const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
@@ -29,6 +31,13 @@ export default function TransactionsPage() {
   }
 
   useEffect(reload, [activeBranch?.id])
+
+  useEffect(() => {
+    expenseCategoryAPI
+      .list()
+      .then((r) => setCategories(r.data.filter((c) => c.is_active)))
+      .catch(() => setCategories([]))
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,7 +110,12 @@ export default function TransactionsPage() {
             <option value="expense">Expense</option>
             <option value="income">Income</option>
           </select>
-          <input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg" />
+          <input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg" list="expense-categories-list" />
+          <datalist id="expense-categories-list">
+            {categories.map((c) => (
+              <option key={c.id} value={c.name} />
+            ))}
+          </datalist>
           <input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg" />
           <input type="date" value={form.txn_date} onChange={(e) => setForm({ ...form, txn_date: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg" />
           <input placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg" />
