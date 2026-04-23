@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import DashboardLayout from '../components/DashboardLayout'
 import apartmentAPI, { type Contract, type Room } from '../lib/apartmentAPI'
 import { useBranches } from '../context/BranchContext'
@@ -179,7 +179,18 @@ export default function RoomsPage() {
                         ) : <span className="text-xs text-slate-400">—</span>}
                       </td>
                     ) : (
-                      <td className="px-3 py-2 text-slate-500">{r.notes}</td>
+                      <td className="px-3 py-2 text-slate-500">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate">{r.notes}</span>
+                          {r.status === 'vacant' && (
+                            <Link
+                              to={`/tenants/new?room=${r.id}`}
+                              className="px-2 py-1 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 whitespace-nowrap"
+                              title="Rent this room"
+                            >Rent</Link>
+                          )}
+                        </div>
+                      </td>
                     )}
                   </tr>
                 )
