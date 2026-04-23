@@ -105,6 +105,18 @@ export default function ContractsPage() {
                   <StatusBadge status={c.status} />
                 </td>
                 <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
+                  <a
+                    href={`/contracts/${c.id}/agreement?lang=sw`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2 py-1 text-xs rounded bg-slate-700 text-white hover:bg-slate-800"
+                  >SW</a>
+                  <a
+                    href={`/contracts/${c.id}/agreement?lang=en`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2 py-1 text-xs rounded bg-slate-700 text-white hover:bg-slate-800"
+                  >EN</a>
                   {c.status === 'active' && (
                     <>
                       <button
