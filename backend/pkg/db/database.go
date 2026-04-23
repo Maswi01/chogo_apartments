@@ -95,14 +95,14 @@ func createTables(db *sql.DB) error {
 		email VARCHAR(255),
 		phone VARCHAR(20),
 		id_number VARCHAR(50),
-		unit_id INT NOT NULL,
+		unit_id INT NULL,
 		move_in_date DATE,
 		lease_end_date DATE,
 		status ENUM('active', 'inactive', 'evicted') DEFAULT 'active',
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE,
-		FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
+		FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL,
 		INDEX idx_branch_id (branch_id),
 		INDEX idx_unit_id (unit_id)
 	);
@@ -111,7 +111,9 @@ func createTables(db *sql.DB) error {
 		id INT PRIMARY KEY AUTO_INCREMENT,
 		branch_id INT NOT NULL,
 		tenant_id INT NOT NULL,
-		unit_id INT NOT NULL,
+		unit_id INT NULL,
+		invoice_id INT NULL,
+		contract_id INT NULL,
 		amount DECIMAL(10, 2) NOT NULL,
 		payment_date DATE NOT NULL,
 		receipt_number VARCHAR(50),
@@ -122,11 +124,12 @@ func createTables(db *sql.DB) error {
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE,
 		FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-		FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
 		FOREIGN KEY (recorded_by) REFERENCES users(id),
 		INDEX idx_branch_id (branch_id),
 		INDEX idx_tenant_id (tenant_id),
-		INDEX idx_payment_date (payment_date)
+		INDEX idx_payment_date (payment_date),
+		INDEX idx_payments_invoice (invoice_id),
+		INDEX idx_payments_contract (contract_id)
 	);
 
 	CREATE TABLE IF NOT EXISTS expenses (
