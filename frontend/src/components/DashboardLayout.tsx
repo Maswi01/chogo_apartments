@@ -1,6 +1,8 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useLocation, NavLink, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useBranches } from '../context/BranchContext'
+import logoUrl from '../assets/mwita_logo.png'
 
 interface DashboardLayoutProps {
   title: string
@@ -11,6 +13,12 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
   const { user, logout } = useAuth()
   const { branches, activeBranch, isAdminBranch, setActiveBranchById } = useBranches()
   const navigate = useNavigate()
+  const location = useLocation()
+  const reportsActive = location.pathname.startsWith('/reports')
+  const [reportsOpen, setReportsOpen] = useState(reportsActive)
+  useEffect(() => {
+    if (reportsActive) setReportsOpen(true)
+  }, [reportsActive])
 
   const handleLogout = () => {
     logout()
@@ -75,9 +83,38 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
       <NavLink to="/transactions" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
         Office Transaction
       </NavLink>
-      <NavLink to="/reports" className={({ isActive }) => `${baseLinkClass} ${isActive ? activeClass : inactiveClass}`}>
-        Office Report
-      </NavLink>
+      <div>
+        <button
+          type="button"
+          onClick={() => setReportsOpen((o) => !o)}
+          className={`${baseLinkClass} flex items-center justify-between ${reportsActive ? activeClass : inactiveClass}`}
+        >
+          <span>Office Report</span>
+          <span className="text-xs">{reportsOpen ? '▾' : '▸'}</span>
+        </button>
+        {reportsOpen && (
+          <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-cyan-700/40 ml-2">
+            <NavLink to="/reports" end className={({ isActive }) => `${baseLinkClass} text-xs ${isActive ? activeClass : inactiveClass}`}>
+              Summary
+            </NavLink>
+            <NavLink to="/reports/transactions" className={({ isActive }) => `${baseLinkClass} text-xs ${isActive ? activeClass : inactiveClass}`}>
+              Transaction Statement
+            </NavLink>
+            <NavLink to="/reports/expenses" className={({ isActive }) => `${baseLinkClass} text-xs ${isActive ? activeClass : inactiveClass}`}>
+              Expenses Statement
+            </NavLink>
+            <NavLink to="/reports/expenses-summary" className={({ isActive }) => `${baseLinkClass} text-xs ${isActive ? activeClass : inactiveClass}`}>
+              Expenses Report
+            </NavLink>
+            <NavLink to="/reports/cash-flow" className={({ isActive }) => `${baseLinkClass} text-xs ${isActive ? activeClass : inactiveClass}`}>
+              Cash Flow Statement
+            </NavLink>
+            <NavLink to="/reports/rent-monthly" className={({ isActive }) => `${baseLinkClass} text-xs ${isActive ? activeClass : inactiveClass}`}>
+              Rent Monthly Report
+            </NavLink>
+          </div>
+        )}
+      </div>
     </>
   )
 
@@ -85,7 +122,10 @@ export default function DashboardLayout({ title, children }: DashboardLayoutProp
     <div className="min-h-screen bg-slate-100">
       <div className="flex min-h-screen">
         <aside className="w-72 bg-gradient-to-b from-cyan-800 to-cyan-900 text-white px-5 py-6 flex flex-col">
-          <h1 className="text-2xl font-black tracking-wide mb-6">CHOGO</h1>
+          <div className="mb-6 flex items-center gap-3">
+            <img src={logoUrl} alt="Logo" className="h-10 w-10 rounded-md bg-white/10 p-1" />
+            <h1 className="text-2xl font-black tracking-wide">CHOGO</h1>
+          </div>
 
           <div className="mb-6 rounded-xl bg-blue-950/40 border border-blue-900/40 p-3">
             <p className="text-[10px] uppercase tracking-wider text-cyan-200">Active Branch</p>

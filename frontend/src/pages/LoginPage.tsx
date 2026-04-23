@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import authAPI from '../lib/authAPI'
+import heroImage from '../assets/mwita_picture.jpg'
+import logoUrl from '../assets/mwita_logo.png'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -33,15 +35,23 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
-      <div className="hidden md:flex items-center justify-center bg-gradient-to-br from-blue-700 to-sky-500 p-12">
-        <div className="max-w-md text-white">
-          <h1 className="text-4xl font-extrabold mb-4">Chogo Apartments</h1>
-          <p className="text-lg opacity-90">Modern property management, simplified. Securely manage branches, staff, properties and payments from one place.</p>
-          <ul className="mt-6 space-y-3">
-            <li className="flex items-center gap-3"><span className="inline-block bg-white/20 p-2 rounded">✓</span> Multi-branch support</li>
-            <li className="flex items-center gap-3"><span className="inline-block bg-white/20 p-2 rounded">✓</span> Role-based access</li>
-            <li className="flex items-center gap-3"><span className="inline-block bg-white/20 p-2 rounded">✓</span> Fast onboarding</li>
-          </ul>
+      <div
+        className="hidden md:block relative bg-slate-900"
+        style={{
+          backgroundImage: `url(${heroImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-slate-900/30 to-transparent" />
+        <div className="relative h-full flex items-end p-10">
+          <div className="flex items-center gap-3 text-white">
+            <img src={logoUrl} alt="Chogo" className="h-12 w-12 rounded-md bg-white/90 p-1" />
+            <div>
+              <h1 className="text-2xl font-extrabold leading-tight">Chogo Apartments</h1>
+              <p className="text-sm opacity-90">Property Management System</p>
+            </div>
+          </div>
         </div>
       </div>
 

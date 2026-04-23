@@ -267,7 +267,6 @@ func createTables(db *sql.DB) error {
 func seedDefaultBranches(db *sql.DB) error {
 	defaultBranches := []string{
 		"Administration",
-		"Main Branch",
 	}
 
 	for _, name := range defaultBranches {
