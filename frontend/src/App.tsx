@@ -2007,6 +2007,10 @@ function App() {
 
   const handleReportPrint = () => {
     if (reportMode === "tenants") {
+      if (selectedBuildingID !== "hq" && reportTenantID) {
+        const selectedTenant = tenants.find((item) => String(item.id) === reportTenantID);
+        if (selectedTenant) { printTenantStatement(selectedTenant); return; }
+      }
       const headers = ["No.", "Tenant", "Phone", ...(selectedBuildingID === "hq" ? ["Building"] : []), "Rooms", "Active contracts", "Total rent"];
       const rows = filteredReportTenants.map((tenant, index) => {
         const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
@@ -3102,7 +3106,7 @@ function App() {
               </p>
             </div>
             <div className="report-controls">
-              {reportMode !== "cashflow" && (
+              {reportMode !== "cashflow" && !(reportMode === "tenants" && selectedBuildingID !== "hq") && (
                 <input
                   className="report-search"
                   value={reportSearch}
@@ -3116,24 +3120,39 @@ function App() {
                   <input type="date" value={reportDateTo} onChange={(event) => { setReportDateTo(event.target.value); setReportPage(1); }} aria-label="To date" />
                 </>
               )}
-              <select value={reportPageSize} onChange={(event) => { setReportPageSize(Number(event.target.value)); setReportPage(1); }}>
-                <option value="10">10 entries</option>
-                <option value="25">25 entries</option>
-                <option value="50">50 entries</option>
-              </select>
+              {!(reportMode === "tenants" && selectedBuildingID !== "hq") && (
+                <select value={reportPageSize} onChange={(event) => { setReportPageSize(Number(event.target.value)); setReportPage(1); }}>
+                  <option value="10">10 entries</option>
+                  <option value="25">25 entries</option>
+                  <option value="50">50 entries</option>
+                </select>
+              )}
               <button type="button" className="secondary-button report-print-button" onClick={handleReportPrint}>Print</button>
             </div>
             {reportMode === "tenants" && (
               <div className="panel list-panel report-panel">
                 <div className="report-controls">
-                  <select value={reportTenantID} onChange={(event) => { const id = event.target.value; setReportPage(1); if (id) { goTo(`/reports/tenant-statement/${id}`); } else { goTo("/reports/tenants"); } }}>
-                    <option value="">All tenants</option>
+                  <select value={reportTenantID} onChange={(event) => { const id = event.target.value; setReportPage(1); if (selectedBuildingID === "hq") { setReportTenantID(id); return; } if (id) { goTo(`/reports/tenant-statement/${id}`); } else { goTo("/reports/tenants"); } }}>
+                    <option value="">{selectedBuildingID === "hq" ? "All tenants" : "Select tenant…"}</option>
                     {tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</option>)}
                   </select>
                 </div>
-                {selectedBuildingID !== "hq" && reportTenantID ? (() => {
+                {selectedBuildingID === "hq" ? (
+                  <>
+                    <div className="section-heading"><h2>All tenants by building</h2><span>{filteredReportTenants.length} {filteredReportTenants.length === 1 ? "entry" : "entries"}</span></div>
+                    <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Phone</th><th>Building</th><th>Rooms</th><th>Active contracts</th><th>Total rent</th></tr></thead><tbody>
+                      {filteredReportTenants.length === 0 ? <tr><td colSpan={7}>No tenants found.</td></tr> : reportSlice(filteredReportTenants).map((tenant, index) => {
+                        const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
+                        const tenantUnits = tenantContracts.map((contract) => units.find((unit) => String(unit.id) === String(contract.unit_id))?.number).filter(Boolean);
+                        const building = buildings.find((item) => String(item.id) === String(tenant.building_id));
+                        return <tr key={tenant.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</td><td>{tenant.phone || "-"}</td><td>{building?.name || "-"}</td><td>{tenantUnits.length ? tenantUnits.join(", ") : "-"}</td><td>{tenantContracts.length}</td><td>{formatAmount(tenantContracts.reduce((total, contract) => total + contract.monthly_rent, 0))}</td></tr>;
+                      })}
+                    </tbody></table></div>
+                    <div className="pagination"><span>Showing {reportSlice(filteredReportTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportTenants.length)} of {filteredReportTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                  </>
+                ) : reportTenantID ? (() => {
                   const tenant = tenants.find((item) => String(item.id) === reportTenantID);
-                  if (!tenant) return <p className="report-empty">Tenant not found.</p>;
+                  if (!tenant) return <p className="report-empty">Tenant not found in this building.</p>;
                   const tenantInvoices = invoices.filter((invoice) => String(invoice.tenant_id) === reportTenantID);
                   const tenantPayments = payments.filter((payment) => String(payment.tenant_id) === reportTenantID);
                   const invoicedTotal = tenantInvoices.reduce((total, invoice) => total + invoice.amount, 0);
@@ -3162,18 +3181,7 @@ function App() {
                     </div>
                   );
                 })() : (
-                  <>
-                    <div className="section-heading"><h2>{selectedBuildingID === "hq" ? "All tenants by building" : "Tenant statement"}</h2><span>{filteredReportTenants.length} {filteredReportTenants.length === 1 ? "entry" : "entries"}</span></div>
-                    <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Phone</th>{selectedBuildingID === "hq" && <th>Building</th>}<th>Rooms</th><th>Active contracts</th><th>Total rent</th></tr></thead><tbody>
-                      {filteredReportTenants.length === 0 ? <tr><td colSpan={selectedBuildingID === "hq" ? 7 : 6}>No tenants found.</td></tr> : reportSlice(filteredReportTenants).map((tenant, index) => {
-                        const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
-                        const tenantUnits = tenantContracts.map((contract) => units.find((unit) => String(unit.id) === String(contract.unit_id))?.number).filter(Boolean);
-                        const building = buildings.find((item) => String(item.id) === String(tenant.building_id));
-                        return <tr key={tenant.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</td><td>{tenant.phone || "-"}</td>{selectedBuildingID === "hq" && <td>{building?.name || "-"}</td>}<td>{tenantUnits.length ? tenantUnits.join(", ") : "-"}</td><td>{tenantContracts.length}</td><td>{formatAmount(tenantContracts.reduce((total, contract) => total + contract.monthly_rent, 0))}</td></tr>;
-                      })}
-                    </tbody></table></div>
-                    <div className="pagination"><span>Showing {reportSlice(filteredReportTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportTenants.length)} of {filteredReportTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
-                  </>
+                  <p className="report-empty">Select a tenant from the dropdown above to open their statement.</p>
                 )}
               </div>
             )}
