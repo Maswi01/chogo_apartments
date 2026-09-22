@@ -1,5 +1,2 @@
 .env
-.env.local
-*.exe
-main
-.DS_Store
+uploads/
