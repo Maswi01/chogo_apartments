@@ -12,6 +12,7 @@ import (
 
 	"chogo_apartments/internal/auth"
 	"chogo_apartments/internal/buildings"
+
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )

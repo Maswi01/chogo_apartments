@@ -1,6 +1,8 @@
 package buildings
 
 import (
+	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"html/template"
 	"io"
@@ -10,6 +12,13 @@ import (
 	"strconv"
 	"time"
 )
+
+//go:embed assets/mwita_doc_header.png
+var contractHeaderPNG []byte
+
+// contractHeaderDataURI is the letterhead embedded as a data URI so it renders
+// inside the preview window, which is opened from an in-memory blob URL.
+var contractHeaderDataURI = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(contractHeaderPNG))
 
 // Handler exposes the core building, floor, and unit APIs.
 type Handler struct {
@@ -330,8 +339,8 @@ func (h *Handler) deleteContract(writer http.ResponseWriter, request *http.Reque
 
 var contractPreviewTemplate = template.Must(template.New("contract").Parse(`<!doctype html>
 <html lang="sw"><head><meta charset="utf-8"><title>Mkataba wa upangishaji</title>
-<style>body{font-family:Georgia,serif;line-height:1.6;max-width:800px;margin:48px auto;color:#111}h1,h2{text-align:center}table{width:100%;border-collapse:collapse;margin:24px 0}td{border:1px solid #555;padding:9px}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:80px;margin-top:80px}@media print{body{margin:20px}}</style></head>
-<body><h1>{{if eq .Contract.ContractType "Commercial"}}MKATABA WA KUPANGISHA SEHEMU YA BIASHARA{{else}}MKATABA WA KUKODISHA NYUMBA MAKAZI{{end}}</h1>
+<style>body{font-family:Georgia,serif;line-height:1.6;max-width:800px;margin:48px auto;color:#111}h1,h2{text-align:center}.letterhead{display:block;width:100%;max-height:150px;object-fit:contain;margin:0 0 18px}table{width:100%;border-collapse:collapse;margin:24px 0}td{border:1px solid #555;padding:9px}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:80px;margin-top:80px}@media print{body{margin:20px}}</style></head>
+<body><img class="letterhead" src="{{.HeaderImage}}" alt="Mwita Family Apartments"><h1>{{if eq .Contract.ContractType "Commercial"}}MKATABA WA KUPANGISHA SEHEMU YA BIASHARA{{else}}MKATABA WA KUKODISHA NYUMBA MAKAZI{{end}}</h1>
 <p>Mkataba huu ni kati ya mwenye jengo na mpangaji aliyesajiliwa hapa chini.</p><table>
 <tr><td>MPANGAJI</td><td>{{.TenantName}}</td></tr><tr><td>AINA YA UPANGAJI</td><td>{{.Contract.ContractType}}</td></tr><tr><td>UNITI / CHUMBA</td><td>{{.UnitNumber}}</td></tr><tr><td>TAREHE YA KUANZA</td><td>{{.Contract.StartDate}}</td></tr><tr><td>TAREHE YA KUISHA</td><td>{{.Contract.EndDate}}</td></tr><tr><td>KODI YA PANGO</td><td>{{printf "%.2f" .Contract.MonthlyRent}}</td></tr><tr><td>JINSI YA KULIPA</td><td>{{.Contract.PaymentMethod}} - {{.Contract.PaymentFrequency}}</td></tr><tr><td>GHARAMA ZA HUDUMA</td><td>{{.Contract.UtilityResponsibility}}</td></tr></table>
 <h2>MASHARTI YA MKATABA</h2><p style="white-space:pre-wrap">{{.Contract.Terms}}</p><p style="white-space:pre-wrap">{{.Contract.Notes}}</p><div class="signatures"><div>____________________________<br>MPANGAJI<br>Tarehe: ______________</div><div>____________________________<br>MWENYE JENGO<br>Tarehe: ______________</div></div></body></html>`))
@@ -362,7 +371,7 @@ func (h *Handler) previewContract(writer http.ResponseWriter, request *http.Requ
 		tenantName = tenant.CompanyName
 	}
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := contractPreviewTemplate.Execute(writer, map[string]interface{}{"Contract": contract, "TenantName": tenantName, "UnitNumber": unit.Number}); err != nil {
+	if err := contractPreviewTemplate.Execute(writer, map[string]interface{}{"Contract": contract, "TenantName": tenantName, "UnitNumber": unit.Number, "HeaderImage": contractHeaderDataURI}); err != nil {
 		writeJSONError(writer, http.StatusInternalServerError, "render contract preview")
 	}
 }

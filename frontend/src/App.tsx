@@ -7,9 +7,12 @@ import {
 } from "react";
 import Swal from "sweetalert2";
 import heroImage from "./assets/mwita_picture.jpg";
+import docHeader from "./assets/mwita_doc_header.png";
 import "./App.css";
 
-const apiURL = import.meta.env.VITE_API_URL ?? "http://localhost:6400/api/v1";
+const apiURL =
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV ? "http://localhost:6400/api/v1" : "/api/v1");
 
 const formatAmount = (value: string | number) => {
   const raw = String(value).replace(/[^0-9.]/g, "");
@@ -1192,7 +1195,7 @@ function App() {
     const paid = invoicePaidAmount(invoice.id);
     const balance = Math.max(0, invoice.amount - paid);
     const tenantName = tenant?.full_name || tenant?.company_name || "Unknown tenant";
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(invoice.number)}</title><style>body{max-width:850px;margin:48px auto;font:15px Arial,sans-serif;color:#17231f}h1{margin-bottom:4px}p{color:#69756e}table{width:100%;margin-top:28px;border-collapse:collapse}th,td{padding:12px;border:1px solid #dfe5dd;text-align:left}.totals{margin:26px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #dfe5dd}@media print{body{margin:20px}}</style></head><body><h1>Invoice ${escapeHTML(invoice.number)}</h1><p>${escapeHTML(tenantName)} · Room ${escapeHTML(unit?.number || "-")}</p><table><tr><th>Period</th><th>Monthly price</th><th>Issue date</th><th>Status</th></tr><tr><td>${escapeHTML(dateOnly(contract?.start_date || invoice.issue_date))} to ${escapeHTML(dateOnly(contract?.end_date || invoice.due_date))}</td><td>${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}</td><td>${escapeHTML(dateOnly(invoice.issue_date))}</td><td>${escapeHTML(balance === 0 ? "Paid" : paid > 0 ? "Partially Paid" : invoice.status)}</td></tr></table><div class="totals"><div><span>Total</span><strong>${escapeHTML(formatAmount(invoice.amount))}</strong></div><div><span>Paid</span><strong>${escapeHTML(formatAmount(paid))}</strong></div><div><span>Balance</span><strong>${escapeHTML(formatAmount(balance))}</strong></div></div><script>window.print()</script></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(invoice.number)}</title><style>body{max-width:850px;margin:48px auto;font:15px Arial,sans-serif;color:#17231f}h1{margin-bottom:4px}p{color:#69756e}table{width:100%;margin-top:28px;border-collapse:collapse}th,td{padding:12px;border:1px solid #dfe5dd;text-align:left}.totals{margin:26px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #dfe5dd}@media print{body{margin:20px}}</style></head><body><img src="${window.location.origin}${docHeader}" alt="Mwita Family Apartments" style="display:block;width:100%;max-height:150px;object-fit:contain;margin-bottom:14px"><h1>Invoice ${escapeHTML(invoice.number)}</h1><p>${escapeHTML(tenantName)} · Room ${escapeHTML(unit?.number || "-")}</p><table><tr><th>Period</th><th>Monthly price</th><th>Issue date</th><th>Status</th></tr><tr><td>${escapeHTML(dateOnly(contract?.start_date || invoice.issue_date))} to ${escapeHTML(dateOnly(contract?.end_date || invoice.due_date))}</td><td>${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}</td><td>${escapeHTML(dateOnly(invoice.issue_date))}</td><td>${escapeHTML(balance === 0 ? "Paid" : paid > 0 ? "Partially Paid" : invoice.status)}</td></tr></table><div class="totals"><div><span>Total</span><strong>${escapeHTML(formatAmount(invoice.amount))}</strong></div><div><span>Paid</span><strong>${escapeHTML(formatAmount(paid))}</strong></div><div><span>Balance</span><strong>${escapeHTML(formatAmount(balance))}</strong></div></div><script>window.print()</script></body></html>`;
     const invoiceURL = URL.createObjectURL(new Blob([html], { type: "text/html" }));
     window.open(invoiceURL, "_blank", "noopener,noreferrer");
   };
@@ -1509,7 +1512,7 @@ function App() {
           <div className="login-brand">
             <span className="brand-mark">M</span>
             <span>
-              Chogo<span>Rent</span>
+              Mwita <span>Family Apartments</span>
             </span>
           </div>
           <div className="story-copy">
@@ -1529,13 +1532,13 @@ function App() {
             src={heroImage}
             alt="Layered building platform"
           />
-          <p className="story-footer">CHOGO APARTMENTS</p>
+          <p className="story-footer">MWITA FAMILY APARTMENTS</p>
         </section>
         <form className="login-panel" onSubmit={handleLogin}>
           <div className="login-heading">
             <p className="eyebrow">Welcome back</p>
             <h1>Sign in to your workspace</h1>
-            <p>Use your ChogoRent account to continue.</p>
+            <p>Use your Mwita Family Apartments account to continue.</p>
           </div>
           <label>
             Username or email
@@ -1953,7 +1956,7 @@ function App() {
         <div className="brand">
           <span className="brand-mark">M</span>
           <span>
-            Chogo<span className="brand-muted">Rent</span>
+            Mwita<span className="brand-muted"> Family Apartments</span>
           </span>
         </div>
         <p className="user-name">{session.user.full_name}</p>
