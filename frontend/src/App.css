@@ -4,6 +4,8 @@
 .brand, .login-brand { display: flex; align-items: center; gap: 10px; color: #fff; font: 700 21px 'Space Grotesk', sans-serif; }
 .brand { margin: 0 10px 32px; }
 .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 7px; background: var(--lime); color: var(--pine); }
+.brand-logo { width: 40px; height: 40px; border-radius: 9px; object-fit: contain; background: #fff; padding: 4px; }
+.section-actions { display: flex; align-items: center; gap: 14px; }.report-print-button { white-space: nowrap; }
 .brand-muted { color: #9dc9ad; }
 .user-name { margin: -19px 0 28px 52px; color: #a9cbb8; font-size: 12px; }
 .nav { display: flex; flex-direction: column; gap: 4px; }

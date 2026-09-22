@@ -1208,7 +1208,7 @@ function App() {
     const paid = invoicePaidAmount(invoice.id);
     const balance = Math.max(0, invoice.amount - paid);
     const tenantName = tenant?.full_name || tenant?.company_name || "Unknown tenant";
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(invoice.number)}</title><style>body{max-width:850px;margin:48px auto;font:15px Arial,sans-serif;color:#17231f}h1{margin-bottom:4px}p{color:#69756e}table{width:100%;margin-top:28px;border-collapse:collapse}th,td{padding:12px;border:1px solid #dfe5dd;text-align:left}.totals{margin:26px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #dfe5dd}@media print{body{margin:20px}}</style></head><body><img src="${window.location.origin}${docHeader}" alt="Mwita Family Apartments" style="display:block;width:100%;max-height:150px;object-fit:contain;margin-bottom:14px"><h1>Invoice ${escapeHTML(invoice.number)}</h1><p>${escapeHTML(tenantName)} · Room ${escapeHTML(unit?.number || "-")}</p><table><tr><th>Period</th><th>Monthly price</th><th>Issue date</th><th>Status</th></tr><tr><td>${escapeHTML(dateOnly(contract?.start_date || invoice.issue_date))} to ${escapeHTML(dateOnly(contract?.end_date || invoice.due_date))}</td><td>${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}</td><td>${escapeHTML(dateOnly(invoice.issue_date))}</td><td>${escapeHTML(balance === 0 ? "Paid" : paid > 0 ? "Partially Paid" : invoice.status)}</td></tr></table><div class="totals"><div><span>Total</span><strong>${escapeHTML(formatAmount(invoice.amount))}</strong></div><div><span>Paid</span><strong>${escapeHTML(formatAmount(paid))}</strong></div><div><span>Balance</span><strong>${escapeHTML(formatAmount(balance))}</strong></div></div><script>window.print()</script></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(invoice.number)}</title><style>body{max-width:850px;margin:48px auto;font:15px Arial,sans-serif;color:#17231f}h1{margin-bottom:4px}p{color:#69756e}table{width:100%;margin-top:28px;border-collapse:collapse}th,td{padding:12px;border:1px solid #dfe5dd;text-align:left}.totals{margin:26px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #dfe5dd}@media print{body{margin:20px}.print-toolbar{display:none}}.print-toolbar{display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px}.print-toolbar button{border:none;border-radius:6px;padding:10px 22px;background:#133d32;color:#fff;font-weight:700;font-size:13px;cursor:pointer}</style></head><body><div class="print-toolbar"><button onclick="window.print()">Print</button></div><img src="${window.location.origin}${docHeader}" alt="Mwita Family Apartments" style="display:block;width:100%;max-height:150px;object-fit:contain;margin-bottom:14px"><h1>Invoice ${escapeHTML(invoice.number)}</h1><p>${escapeHTML(tenantName)} · Room ${escapeHTML(unit?.number || "-")}</p><table><tr><th>Period</th><th>Monthly price</th><th>Issue date</th><th>Status</th></tr><tr><td>${escapeHTML(dateOnly(contract?.start_date || invoice.issue_date))} to ${escapeHTML(dateOnly(contract?.end_date || invoice.due_date))}</td><td>${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}</td><td>${escapeHTML(dateOnly(invoice.issue_date))}</td><td>${escapeHTML(balance === 0 ? "Paid" : paid > 0 ? "Partially Paid" : invoice.status)}</td></tr></table><div class="totals"><div><span>Total</span><strong>${escapeHTML(formatAmount(invoice.amount))}</strong></div><div><span>Paid</span><strong>${escapeHTML(formatAmount(paid))}</strong></div><div><span>Balance</span><strong>${escapeHTML(formatAmount(balance))}</strong></div></div></body></html>`;
     const invoiceURL = URL.createObjectURL(new Blob([html], { type: "text/html" }));
     window.open(invoiceURL, "_blank", "noopener,noreferrer");
   };
@@ -1987,6 +1987,114 @@ function App() {
   );
   const reportSlice = <T,>(rows: T[]) => rows.slice((reportPage - 1) * reportPageSize, reportPage * reportPageSize);
   const reportPageCount = (rows: unknown[]) => Math.max(1, Math.ceil(rows.length / reportPageSize));
+
+  const escapeCell = (value: string | number) => escapeHTML(String(value));
+  const tableHTML = (headers: string[], rows: string[][], footer?: string[]) =>
+    `<table><thead><tr>${headers.map((header) => `<th>${escapeHTML(header)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${headers.length}">No data available.</td></tr>`}</tbody>${footer ? `<tfoot><tr>${footer.map((cell) => `<td>${cell}</td>`).join("")}</tr></tfoot>` : ""}</table>`;
+  const printDocument = (title: string, innerHTML: string) => {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(title)}</title><style>*{box-sizing:border-box}body{max-width:960px;margin:28px auto;padding:0 26px;font:14px Arial,Helvetica,sans-serif;color:#17231f}.print-toolbar{display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px}.print-toolbar button{border:none;border-radius:6px;padding:10px 22px;background:#133d32;color:#fff;font-weight:700;font-size:13px;cursor:pointer}.doc-header{display:block;width:100%;max-height:150px;object-fit:contain;border-bottom:3px solid #b8891b;padding-bottom:12px;margin-bottom:8px}.doc-title{text-align:center;text-decoration:underline;font-size:20px;font-weight:700;margin:20px 0}.doc-meta{margin:0 0 8px;font-size:14px}.doc-subtle{color:#69756e;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border:1px solid #dfe5dd;text-align:left;font-size:13px;vertical-align:top}th{background:#f4f6f4}tfoot td{font-weight:700}.printed-on{margin-top:22px;color:#69756e;font-size:12px}@media print{.print-toolbar{display:none}body{margin:0;max-width:none}}</style></head><body><div class="print-toolbar"><button onclick="window.print()">Print</button></div><img class="doc-header" src="${window.location.origin}${docHeader}" alt="Mwita Family Apartments">${innerHTML}<div class="printed-on">Printed on: ${escapeHTML(new Date().toLocaleString())}</div></body></html>`;
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+  const reportScopeLabel = selectedBuildingID === "hq" ? "All buildings" : selectedBuilding?.name || "Building";
+  const monthsBetween = (start: string, end: string) => {
+    const from = new Date(start);
+    const to = new Date(end);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 0;
+    return Math.max(0, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()));
+  };
+
+  const handleReportPrint = () => {
+    if (reportMode === "tenants") {
+      const headers = ["No.", "Tenant", "Phone", ...(selectedBuildingID === "hq" ? ["Building"] : []), "Rooms", "Active contracts", "Total rent"];
+      const rows = filteredReportTenants.map((tenant, index) => {
+        const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
+        const tenantUnits = tenantContracts.map((contract) => units.find((unit) => String(unit.id) === String(contract.unit_id))?.number).filter(Boolean);
+        const building = buildings.find((item) => String(item.id) === String(tenant.building_id));
+        return [
+          String(index + 1),
+          escapeCell(tenant.full_name || tenant.company_name || "Unnamed tenant"),
+          escapeCell(tenant.phone || "-"),
+          ...(selectedBuildingID === "hq" ? [escapeCell(building?.name || "-")] : []),
+          escapeCell(tenantUnits.length ? tenantUnits.join(", ") : "-"),
+          String(tenantContracts.length),
+          escapeCell(formatAmount(tenantContracts.reduce((total, contract) => total + contract.monthly_rent, 0))),
+        ];
+      });
+      printDocument(`Tenant report · ${reportScopeLabel}`, `<h1 class="doc-title">TENANT REPORT</h1><p class="doc-subtle">${escapeHTML(reportScopeLabel)}</p>${tableHTML(headers, rows)}`);
+      return;
+    }
+    if (reportMode === "transactions") {
+      const headers = ["No.", "Date", "Tenant", "Room", "Invoice", "Reference", "Method", "Amount"];
+      const rows = filteredReportPayments.map((payment, index) => {
+        const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id));
+        const unit = units.find((item) => String(item.id) === String(payment.unit_id));
+        const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id));
+        return [String(index + 1), escapeCell(dateOnly(payment.payment_date)), escapeCell(tenant?.full_name || tenant?.company_name || "-"), escapeCell(unit?.number || "-"), escapeCell(invoice?.number || payment.invoice_id), escapeCell(payment.payment_reference), escapeCell(payment.payment_method), escapeCell(formatAmount(payment.amount))];
+      });
+      printDocument(`Transaction statement · ${reportScopeLabel}`, `<h1 class="doc-title">TRANSACTION STATEMENT</h1><p class="doc-subtle">${escapeHTML(reportScopeLabel)}</p>${tableHTML(headers, rows, ["", "", "", "", "", "", "Total", escapeCell(formatAmount(filteredReportPaymentsTotal))])}`);
+      return;
+    }
+    if (reportMode === "expenses") {
+      const headers = ["No.", "Date", "Building", "Category", "Reference", "Notes", "Amount"];
+      const rows = filteredReportExpenses.map((expense, index) => {
+        const category = expenseCategories.find((item) => String(item.id) === String(expense.category_id));
+        const building = buildings.find((item) => String(item.id) === String(expense.building_id));
+        return [String(index + 1), escapeCell(dateOnly(expense.expense_date)), escapeCell(building?.name || "-"), escapeCell(category?.name || "-"), escapeCell(expense.reference || "-"), escapeCell(expense.notes || "-"), escapeCell(formatAmount(expense.amount))];
+      });
+      printDocument(`Expenses statement · ${reportScopeLabel}`, `<h1 class="doc-title">EXPENSES STATEMENT</h1><p class="doc-subtle">${escapeHTML(reportScopeLabel)}</p>${tableHTML(headers, rows, ["", "", "", "", "", "Total", escapeCell(formatAmount(filteredReportExpensesTotal))])}`);
+      return;
+    }
+    if (reportMode === "rent") {
+      const headers = ["No.", "Tenant", "Room", "Start", "End", "Monthly rent", "Status"];
+      const rows = filteredReportContracts.map((contract, index) => {
+        const tenant = tenants.find((item) => String(item.id) === String(contract.tenant_id));
+        const unit = units.find((item) => String(item.id) === String(contract.unit_id));
+        return [String(index + 1), escapeCell(tenant?.full_name || tenant?.company_name || "-"), escapeCell(unit?.number || "-"), escapeCell(dateOnly(contract.start_date)), escapeCell(dateOnly(contract.end_date)), escapeCell(formatAmount(contract.monthly_rent)), escapeCell(contract.status)];
+      });
+      printDocument(`Monthly rent report · ${reportScopeLabel}`, `<h1 class="doc-title">MONTHLY RENT REPORT</h1><p class="doc-subtle">${escapeHTML(reportScopeLabel)}</p>${tableHTML(headers, rows, ["", "", "", "", "Total", escapeCell(formatAmount(filteredReportContractRent)), ""])}`);
+      return;
+    }
+    const headers = ["Type", "Description", "Inflow", "Outflow", "Net"];
+    const rows = [
+      ["Income", "Rent and invoice payments", escapeCell(formatAmount(totalPaid)), escapeCell(formatAmount(0)), escapeCell(formatAmount(totalPaid))],
+      ["Expense", "Recorded expenses", escapeCell(formatAmount(0)), escapeCell(formatAmount(totalExpenses)), escapeCell(formatAmount(-totalExpenses))],
+    ];
+    printDocument(`Cash flow statement · ${reportScopeLabel}`, `<h1 class="doc-title">CASH FLOW STATEMENT</h1><p class="doc-subtle">${escapeHTML(reportScopeLabel)}</p>${tableHTML(headers, rows, ["", "Net cash flow", escapeCell(formatAmount(totalPaid)), escapeCell(formatAmount(totalExpenses)), escapeCell(formatAmount(totalPaid - totalExpenses))])}`);
+  };
+
+  const printTenantStatement = (tenant: TenantRecord) => {
+    const tenantInvoices = invoices.filter((invoice) => String(invoice.tenant_id) === String(tenant.id));
+    const tenantPayments = payments.filter((payment) => String(payment.tenant_id) === String(tenant.id));
+    type LedgerEntry = { date: string; agreement: string; receipt: string; particular: string; credit: number; debit: number };
+    const entries: LedgerEntry[] = [
+      ...tenantInvoices.map((invoice) => {
+        const contract = contracts.find((item) => String(item.id) === String(invoice.contract_id));
+        const unit = units.find((item) => String(item.id) === String(invoice.unit_id));
+        const building = buildings.find((item) => String(item.id) === String(invoice.building_id));
+        const months = contract ? monthsBetween(contract.start_date, contract.end_date) : 0;
+        const agreement = `<strong>${escapeHTML(invoice.number)}</strong><div class="doc-subtle">Room: ${escapeHTML(unit?.number || "-")}<br>Period: ${months} month(s)<br>Price/Month: ${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}<br>Building: ${escapeHTML(building?.name || "-")}</div>`;
+        return { date: invoice.issue_date, agreement, receipt: "-", particular: "INVOICE", credit: 0, debit: invoice.amount };
+      }),
+      ...tenantPayments.map((payment) => ({
+        date: payment.payment_date,
+        agreement: "-",
+        receipt: escapeHTML(payment.receipt_number || payment.payment_reference || "-"),
+        particular: `PAID (${escapeHTML((payment.payment_method || "").toUpperCase())})`,
+        credit: payment.amount,
+        debit: 0,
+      })),
+    ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    let running = 0;
+    const rows = entries.map((entry) => {
+      running += entry.debit - entry.credit;
+      return [entry.agreement, escapeHTML(dateOnly(entry.date)), entry.receipt, entry.particular, entry.credit ? escapeHTML(formatAmount(entry.credit)) : "-", entry.debit ? escapeHTML(formatAmount(entry.debit)) : "-", escapeHTML(formatAmount(Math.max(0, running)))];
+    });
+    const headers = ["Agreement ID", "Date", "Receipt No", "Particular", "Credit", "Debit", "Balance"];
+    const meta = `<p class="doc-meta">Name: <strong>${escapeHTML(tenant.full_name || tenant.company_name || "-")}</strong>&nbsp;&nbsp;|&nbsp;&nbsp;Tenant ID: <strong>${escapeHTML(tenant.id_number || tenant.phone || "-")}</strong>&nbsp;&nbsp;|&nbsp;&nbsp;Mobile: <strong>${escapeHTML(tenant.phone || "-")}</strong></p><p class="doc-subtle">TIN: ${escapeHTML(tenant.registration_ref || "-")}&nbsp;&nbsp;|&nbsp;&nbsp;NIDA: ${escapeHTML(tenant.id_number || "-")}</p>`;
+    printDocument(`Tenant statement · ${tenant.full_name || tenant.company_name || "Tenant"}`, `<h1 class="doc-title">TENANT STATEMENT</h1>${meta}${tableHTML(headers, rows)}`);
+  };
+
   const branchCards = buildings.map((building) => {
     const branchContracts = contracts.filter(
       (contract) => String(contract.building_id) === String(building.id),
@@ -2055,7 +2163,7 @@ function App() {
     <main className="page-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">M</span>
+          <img className="brand-logo" src={logoImage} alt="Mwita Family Apartments logo" />
           <span>
             Mwita<span className="brand-muted"> Family Apartments</span>
           </span>
@@ -2994,6 +3102,7 @@ function App() {
                 <option value="25">25 entries</option>
                 <option value="50">50 entries</option>
               </select>
+              <button type="button" className="secondary-button report-print-button" onClick={handleReportPrint}>Print</button>
             </div>
             {reportMode === "tenants" && (
               <div className="panel list-panel report-panel">
@@ -3013,7 +3122,7 @@ function App() {
                   })}
                 </tbody></table></div>
                 <div className="pagination"><span>Showing {reportSlice(filteredReportTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportTenants.length)} of {filteredReportTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
-                {reportTenantID && (() => {
+                {reportTenantID && selectedBuildingID !== "hq" && (() => {
                   const tenant = tenants.find((item) => String(item.id) === reportTenantID);
                   if (!tenant) return null;
                   const tenantInvoices = invoices.filter((invoice) => String(invoice.tenant_id) === reportTenantID);
@@ -3021,20 +3130,23 @@ function App() {
                   const invoicedTotal = tenantInvoices.reduce((total, invoice) => total + invoice.amount, 0);
                   const paidTotal = tenantPayments.reduce((total, payment) => total + payment.amount, 0);
                   const balanceTotal = Math.max(0, invoicedTotal - paidTotal);
+                  const entries = [
+                    ...tenantInvoices.map((invoice) => ({ id: `inv-${invoice.id}`, date: invoice.issue_date, agreement: invoice.number, room: units.find((unit) => String(unit.id) === String(invoice.unit_id))?.number || "-", receipt: "-", particular: "INVOICE", credit: 0, debit: invoice.amount })),
+                    ...tenantPayments.map((payment) => ({ id: `pay-${payment.id}`, date: payment.payment_date, agreement: "-", room: units.find((unit) => String(unit.id) === String(payment.unit_id))?.number || "-", receipt: payment.receipt_number || payment.payment_reference || "-", particular: `PAID (${(payment.payment_method || "").toUpperCase()})`, credit: payment.amount, debit: 0 })),
+                  ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+                  let running = 0;
+                  const ledger = entries.map((entry) => { running += entry.debit - entry.credit; return { ...entry, balance: Math.max(0, running) }; });
                   return (
                     <div className="tenant-statement-detail">
-                      <div className="section-heading"><h2>Statement · {tenant.full_name || tenant.company_name || "Tenant"}</h2><span>Balance {formatAmount(balanceTotal)}</span></div>
+                      <div className="section-heading"><h2>Statement · {tenant.full_name || tenant.company_name || "Tenant"}</h2><div className="section-actions"><span>Balance {formatAmount(balanceTotal)}</span><button type="button" className="secondary-button" onClick={() => printTenantStatement(tenant)}>Print</button></div></div>
                       <div className="amount-summary">
                         <div className="amount-card"><span>Invoiced</span><strong>{formatAmount(invoicedTotal)}</strong></div>
                         <div className="amount-card"><span>Paid</span><strong>{formatAmount(paidTotal)}</strong></div>
                         <div className="amount-card"><span>Balance</span><strong>{formatAmount(balanceTotal)}</strong></div>
                       </div>
-                      <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>Date</th><th>Type</th><th>Room</th><th>Reference</th><th>Amount</th></tr></thead><tbody>
-                        {tenantInvoices.length === 0 && tenantPayments.length === 0 ? <tr><td colSpan={5}>No statement activity for this tenant.</td></tr> : [
-                          ...tenantInvoices.map((invoice) => ({ id: `inv-${invoice.id}`, date: invoice.issue_date, type: "Invoice", room: units.find((unit) => String(unit.id) === String(invoice.unit_id))?.number || "-", reference: invoice.number, amount: invoice.amount })),
-                          ...tenantPayments.map((payment) => ({ id: `pay-${payment.id}`, date: payment.payment_date, type: "Payment", room: units.find((unit) => String(unit.id) === String(payment.unit_id))?.number || "-", reference: payment.payment_reference || payment.receipt_number || "-", amount: -payment.amount })),
-                        ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map((row) => (
-                          <tr key={row.id}><td>{dateOnly(row.date)}</td><td>{row.type}</td><td>{row.room}</td><td>{row.reference}</td><td>{row.amount < 0 ? `(${formatAmount(-row.amount)})` : formatAmount(row.amount)}</td></tr>
+                      <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>Agreement ID</th><th>Date</th><th>Room</th><th>Receipt No</th><th>Particular</th><th>Credit</th><th>Debit</th><th>Balance</th></tr></thead><tbody>
+                        {ledger.length === 0 ? <tr><td colSpan={8}>No statement activity for this tenant.</td></tr> : ledger.map((row) => (
+                          <tr key={row.id}><td>{row.agreement}</td><td>{dateOnly(row.date)}</td><td>{row.room}</td><td>{row.receipt}</td><td>{row.particular}</td><td>{row.credit ? formatAmount(row.credit) : "-"}</td><td>{row.debit ? formatAmount(row.debit) : "-"}</td><td>{formatAmount(row.balance)}</td></tr>
                         ))}
                       </tbody></table></div>
                     </div>
