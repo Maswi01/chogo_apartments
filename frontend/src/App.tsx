@@ -8,6 +8,7 @@ import {
 import Swal from "sweetalert2";
 import heroImage from "./assets/mwita_picture.jpg";
 import docHeader from "./assets/mwita_doc_header.png";
+import logoImage from "./assets/mwita_logo.png";
 import "./App.css";
 
 const apiURL =
@@ -250,6 +251,7 @@ type View =
   | "contracts"
   | "invoices"
   | "payments"
+  | "expenses"
   | "registration"
   | "reports"
   | "settings";
@@ -356,6 +358,12 @@ function App() {
   const [reportMode, setReportMode] = useState<ReportMode>("tenants");
   const [reportPage, setReportPage] = useState(1);
   const [reportPageSize, setReportPageSize] = useState(10);
+  const [reportTenantID, setReportTenantID] = useState("");
+  const [expenseEntryMode, setExpenseEntryMode] = useState<"list" | "create">("list");
+  const [expenseEntrySearch, setExpenseEntrySearch] = useState("");
+  const [expenseEntryCategoryFilter, setExpenseEntryCategoryFilter] = useState("All");
+  const [expenseEntryPage, setExpenseEntryPage] = useState(1);
+  const [expenseEntryPageSize, setExpenseEntryPageSize] = useState(10);
   const [view, setView] = useState<View>("home");
   const [selectedBuildingID, setSelectedBuildingID] = useState(
     () => localStorage.getItem("chogo-building-id") ?? "hq",
@@ -395,6 +403,8 @@ function App() {
     if (/^\/invoices\/[^/]+\/payment$/.test(path)) setInvoicePageMode("payment");
     if (path === "/payments") setPaymentPageMode("list");
     if (path === "/payments/new") setPaymentPageMode("create");
+    if (path === "/expenses") setExpenseEntryMode("list");
+    if (path === "/expenses/new") setExpenseEntryMode("create");
     if (path === "/buildings") setBuildingPageMode("list");
     if (path === "/buildings/new") setBuildingPageMode("create");
     if (path === "/reports/tenants") { setReportMode("tenants"); setReportPage(1); }
@@ -656,7 +666,7 @@ function App() {
       await Swal.fire({
         icon: "info",
         title: "Tenant cannot be deleted",
-        text: `This tenant has rented unit${rentedUnits.length === 1 ? "" : "s"}: ${rentedUnits.join(", ")}.`,
+        text: `This tenant has rented room${rentedUnits.length === 1 ? "" : "s"}: ${rentedUnits.join(", ")}.`,
         confirmButtonColor: "#133d32",
       });
       return;
@@ -721,11 +731,11 @@ function App() {
     if (!result.isConfirmed) return;
     const response = await apiFetch(`/units/${unit.id}`, { method: "DELETE" });
     if (!response.ok) {
-      await showRequestError(response, "Could not delete unit.");
+      await showRequestError(response, "Could not delete room.");
       return;
     }
     setUnits((current) => current.filter((item) => item.id !== unit.id));
-    void showSuccess("Unit deleted");
+    void showSuccess("Room deleted");
   };
 
   const handleUnitSubmit = async (event: FormEvent) => {
@@ -735,7 +745,7 @@ function App() {
       await Swal.fire({
         icon: "info",
         title: "Choose a building first",
-        text: "Select the building this unit belongs to.",
+        text: "Select the building this room belongs to.",
         confirmButtonColor: "#133d32",
       });
       return;
@@ -743,14 +753,14 @@ function App() {
     if (editingUnitID) {
       const row = unitRows[0];
       const response = await apiFetch(`/units/${editingUnitID}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...row, id: Number(editingUnitID), building_id: Number(effectiveBuildingID), floor_id: Number(row.floor_id) || 0, base_rent: amountNumber(row.base_rent) }) });
-      if (!response.ok) { await showRequestError(response, "Could not update unit."); return; }
+      if (!response.ok) { await showRequestError(response, "Could not update room."); return; }
       const payload = await apiFetch(selectedBuildingID === "hq" ? "/units" : `/buildings/${selectedBuildingID}/units`);
       const data = await payload.json();
       setUnits(data.data ?? []);
       setEditingUnitID(null);
       setUnitRows([{ ...defaultUnitForm }]);
       goTo("/units");
-      void showSuccess("Unit updated");
+      void showSuccess("Room updated");
       return;
     }
     for (const row of unitRows) {
@@ -767,7 +777,7 @@ function App() {
         },
       );
       if (!response.ok) {
-        await showRequestError(response, "Could not save unit.");
+        await showRequestError(response, "Could not save room.");
         return;
       }
     }
@@ -776,7 +786,7 @@ function App() {
     setUnits(data.data ?? []);
     setUnitRows([{ ...defaultUnitForm }]);
     goTo("/units");
-    void showSuccess("Unit saved");
+    void showSuccess("Room saved");
   };
 
   const handleContractChange = (
@@ -1066,7 +1076,7 @@ function App() {
     const result = await Swal.fire({
       icon: "warning",
       title: "Terminate contract?",
-      text: "The unit will become available for rent.",
+      text: "The room will become available for rent.",
       showCancelButton: true,
       confirmButtonText: "Terminate",
       confirmButtonColor: "#d9574f",
@@ -1361,6 +1371,9 @@ function App() {
     const created = (await response.json()) as ExpenseRecord;
     setExpenses((current) => [created, ...current]);
     setExpenseForm(defaultExpenseForm);
+    setExpenseEntryMode("list");
+    setExpenseEntryPage(1);
+    goTo("/expenses");
     void showSuccess("Expense recorded");
   };
 
@@ -1510,29 +1523,16 @@ function App() {
       <main className="login-shell">
         <section className="login-story">
           <div className="login-brand">
-            <span className="brand-mark">M</span>
+            <img className="login-logo" src={logoImage} alt="Mwita Family Apartments logo" />
             <span>
               Mwita <span>Family Apartments</span>
             </span>
           </div>
-          <div className="story-copy">
-            <p className="eyebrow">Property operations</p>
-            <h1>
-              Every building,
-              <br />
-              under control.
-            </h1>
-            <p>
-              One quiet workspace for occupancy, tenants, contracts, and the
-              details that keep each property moving.
-            </p>
-          </div>
           <img
             className="login-illustration"
             src={heroImage}
-            alt="Layered building platform"
+            alt="Mwita Family Apartments"
           />
-          <p className="story-footer">MWITA FAMILY APARTMENTS</p>
         </section>
         <form className="login-panel" onSubmit={handleLogin}>
           <div className="login-heading">
@@ -1586,11 +1586,12 @@ function App() {
   const pageTitle: Record<View, string> = {
     home: selectedBuildingID === "hq" ? "Home" : "Branch home",
     buildings: "Buildings",
-    units: "Units",
+    units: "Rooms",
     tenants: "Tenants",
     contracts: "Contracts",
     invoices: "Invoices",
     payments: "Payments",
+    expenses: "Expenses",
     registration: "Registration",
     reports: "Reports",
     settings: "Settings",
@@ -1813,6 +1814,13 @@ function App() {
       resetPaymentList();
       goTo("/payments");
     }
+    if (nextView === "expenses") {
+      setExpenseEntrySearch("");
+      setExpenseEntryCategoryFilter("All");
+      setExpenseEntryPage(1);
+      setExpenseForm(defaultExpenseForm);
+      goTo("/expenses");
+    }
     setView(nextView);
   };
 
@@ -1884,6 +1892,36 @@ function App() {
     0,
   );
   const totalOutstanding = Math.max(0, totalInvoiced - totalPaid);
+  const statementTenants = reportTenantID
+    ? tenants.filter((tenant) => String(tenant.id) === reportTenantID)
+    : tenants;
+  const filteredExpenseEntries = scopedExpenses.filter((expense) => {
+    const search = expenseEntrySearch.toLowerCase();
+    const category = expenseCategories.find(
+      (item) => String(item.id) === String(expense.category_id),
+    );
+    const matchesSearch =
+      !search ||
+      (category?.name || "").toLowerCase().includes(search) ||
+      (expense.reference || "").toLowerCase().includes(search) ||
+      (expense.notes || "").toLowerCase().includes(search);
+    const matchesCategory =
+      expenseEntryCategoryFilter === "All" ||
+      String(expense.category_id) === expenseEntryCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+  const filteredExpenseEntriesTotal = filteredExpenseEntries.reduce(
+    (total, expense) => total + expense.amount,
+    0,
+  );
+  const expenseEntryPageCount = Math.max(
+    1,
+    Math.ceil(filteredExpenseEntries.length / expenseEntryPageSize),
+  );
+  const visibleExpenseEntries = filteredExpenseEntries.slice(
+    (expenseEntryPage - 1) * expenseEntryPageSize,
+    expenseEntryPage * expenseEntryPageSize,
+  );
   const reportSlice = <T,>(rows: T[]) => rows.slice((reportPage - 1) * reportPageSize, reportPage * reportPageSize);
   const reportPageCount = (rows: unknown[]) => Math.max(1, Math.ceil(rows.length / reportPageSize));
   const branchCards = buildings.map((building) => {
@@ -2033,6 +2071,12 @@ function App() {
                 </button>
                 {reportsNavOpen && reportLinks}
               </div>
+              <button
+                className={`nav-link ${view === "expenses" ? "active" : ""}`}
+                onClick={() => showView("expenses")}
+              >
+                Expenses
+              </button>
             </>
           ) : (
             <>
@@ -2040,7 +2084,7 @@ function App() {
                 className={`nav-link ${view === "units" ? "active" : ""}`}
                 onClick={() => showView("units")}
               >
-                Units
+                Rooms
               </button>
               <button
                 className={`nav-link ${view === "tenants" ? "active" : ""}`}
@@ -2065,6 +2109,12 @@ function App() {
                 onClick={() => showView("payments")}
               >
                 Payments
+              </button>
+              <button
+                className={`nav-link ${view === "expenses" ? "active" : ""}`}
+                onClick={() => showView("expenses")}
+              >
+                Expenses
               </button>
               <div className="nav-group">
                 <button
@@ -2866,37 +2916,57 @@ function App() {
                 <option value="50">50 entries</option>
               </select>
             </div>
-            {reportMode === "expenses" && (
-              <form className="panel form-panel report-expense-form" onSubmit={handleExpenseSubmit}>
-                <div className="section-heading"><h2>Record expense</h2><span>{selectedBuildingID === "hq" ? "All buildings" : selectedBuilding?.name}</span></div>
-                <div className="inline-fields">
-                  {selectedBuildingID === "hq" && <label>Building<select value={expenseForm.building_id} onChange={(event) => setExpenseForm((current) => ({ ...current, building_id: event.target.value }))} required><option value="">Select building</option>{buildings.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>}
-                  <label>Category<select value={expenseForm.category_id} onChange={(event) => setExpenseForm((current) => ({ ...current, category_id: event.target.value }))} required><option value="">Select category</option>{expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-                  <label>Amount<input inputMode="decimal" value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: formatAmount(event.target.value) }))} required /></label>
-                  <label>Date<input type="date" value={expenseForm.expense_date} onChange={(event) => setExpenseForm((current) => ({ ...current, expense_date: event.target.value }))} required /></label>
-                </div>
-                <div className="inline-fields"><label>Reference<input value={expenseForm.reference} onChange={(event) => setExpenseForm((current) => ({ ...current, reference: event.target.value }))} /></label><label>Notes<input value={expenseForm.notes} onChange={(event) => setExpenseForm((current) => ({ ...current, notes: event.target.value }))} /></label></div>
-                <button className="primary-button" type="submit">Save expense</button>
-              </form>
-            )}
             {reportMode === "tenants" && (
               <div className="panel list-panel report-panel">
-                <div className="section-heading"><h2>{selectedBuildingID === "hq" ? "All tenants by building" : "Tenant statement"}</h2><span>{tenants.length} entries</span></div>
-                <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Phone</th>{selectedBuildingID === "hq" && <th>Building</th>}<th>Units</th><th>Active contracts</th><th>Total rent</th></tr></thead><tbody>
-                  {tenants.length === 0 ? <tr><td colSpan={selectedBuildingID === "hq" ? 7 : 6}>No tenants found.</td></tr> : reportSlice(tenants).map((tenant, index) => {
+                <div className="section-heading"><h2>{selectedBuildingID === "hq" ? "All tenants by building" : "Tenant statement"}</h2><span>{statementTenants.length} {statementTenants.length === 1 ? "entry" : "entries"}</span></div>
+                <div className="report-controls">
+                  <select value={reportTenantID} onChange={(event) => { setReportTenantID(event.target.value); setReportPage(1); }}>
+                    <option value="">All tenants</option>
+                    {tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</option>)}
+                  </select>
+                </div>
+                <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Phone</th>{selectedBuildingID === "hq" && <th>Building</th>}<th>Rooms</th><th>Active contracts</th><th>Total rent</th></tr></thead><tbody>
+                  {statementTenants.length === 0 ? <tr><td colSpan={selectedBuildingID === "hq" ? 7 : 6}>No tenants found.</td></tr> : reportSlice(statementTenants).map((tenant, index) => {
                     const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
                     const tenantUnits = tenantContracts.map((contract) => units.find((unit) => String(unit.id) === String(contract.unit_id))?.number).filter(Boolean);
                     const building = buildings.find((item) => String(item.id) === String(tenant.building_id));
                     return <tr key={tenant.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</td><td>{tenant.phone || "-"}</td>{selectedBuildingID === "hq" && <td>{building?.name || "-"}</td>}<td>{tenantUnits.length ? tenantUnits.join(", ") : "-"}</td><td>{tenantContracts.length}</td><td>{formatAmount(tenantContracts.reduce((total, contract) => total + contract.monthly_rent, 0))}</td></tr>;
                   })}
                 </tbody></table></div>
-                <div className="pagination"><span>Showing {reportSlice(tenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, tenants.length)} of {tenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(tenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                <div className="pagination"><span>Showing {reportSlice(statementTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, statementTenants.length)} of {statementTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(statementTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                {reportTenantID && (() => {
+                  const tenant = tenants.find((item) => String(item.id) === reportTenantID);
+                  if (!tenant) return null;
+                  const tenantInvoices = invoices.filter((invoice) => String(invoice.tenant_id) === reportTenantID);
+                  const tenantPayments = payments.filter((payment) => String(payment.tenant_id) === reportTenantID);
+                  const invoicedTotal = tenantInvoices.reduce((total, invoice) => total + invoice.amount, 0);
+                  const paidTotal = tenantPayments.reduce((total, payment) => total + payment.amount, 0);
+                  const balanceTotal = Math.max(0, invoicedTotal - paidTotal);
+                  return (
+                    <div className="tenant-statement-detail">
+                      <div className="section-heading"><h2>Statement · {tenant.full_name || tenant.company_name || "Tenant"}</h2><span>Balance {formatAmount(balanceTotal)}</span></div>
+                      <div className="amount-summary">
+                        <div className="amount-card"><span>Invoiced</span><strong>{formatAmount(invoicedTotal)}</strong></div>
+                        <div className="amount-card"><span>Paid</span><strong>{formatAmount(paidTotal)}</strong></div>
+                        <div className="amount-card"><span>Balance</span><strong>{formatAmount(balanceTotal)}</strong></div>
+                      </div>
+                      <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>Date</th><th>Type</th><th>Room</th><th>Reference</th><th>Amount</th></tr></thead><tbody>
+                        {tenantInvoices.length === 0 && tenantPayments.length === 0 ? <tr><td colSpan={5}>No statement activity for this tenant.</td></tr> : [
+                          ...tenantInvoices.map((invoice) => ({ id: `inv-${invoice.id}`, date: invoice.issue_date, type: "Invoice", room: units.find((unit) => String(unit.id) === String(invoice.unit_id))?.number || "-", reference: invoice.number, amount: invoice.amount })),
+                          ...tenantPayments.map((payment) => ({ id: `pay-${payment.id}`, date: payment.payment_date, type: "Payment", room: units.find((unit) => String(unit.id) === String(payment.unit_id))?.number || "-", reference: payment.payment_reference || payment.receipt_number || "-", amount: -payment.amount })),
+                        ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map((row) => (
+                          <tr key={row.id}><td>{dateOnly(row.date)}</td><td>{row.type}</td><td>{row.room}</td><td>{row.reference}</td><td>{row.amount < 0 ? `(${formatAmount(-row.amount)})` : formatAmount(row.amount)}</td></tr>
+                        ))}
+                      </tbody></table></div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
             {reportMode === "transactions" && (
               <div className="panel list-panel report-panel">
                 <div className="section-heading"><h2>Transaction statement</h2><span>Total {formatAmount(scopedPayments.reduce((total, payment) => total + payment.amount, 0))}</span></div>
-                <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Date</th><th>Tenant</th><th>Unit</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Amount</th></tr></thead><tbody>
+                <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Date</th><th>Tenant</th><th>Room</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Amount</th></tr></thead><tbody>
                   {scopedPayments.length === 0 ? <tr><td colSpan={8}>No transactions recorded.</td></tr> : reportSlice(scopedPayments).map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "-"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{formatAmount(payment.amount)}</td></tr>; })}
                 </tbody></table></div>
                 <div className="pagination"><span>Showing {reportSlice(scopedPayments).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, scopedPayments.length)} of {scopedPayments.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(scopedPayments)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
@@ -2920,7 +2990,7 @@ function App() {
             {reportMode === "rent" && (
               <div className="panel list-panel report-panel">
                 <div className="section-heading"><h2>Monthly rent report</h2><span>Total {formatAmount(totalContractRent)}</span></div>
-                <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Unit</th><th>Start</th><th>End</th><th>Monthly rent</th><th>Status</th></tr></thead><tbody>
+                <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Room</th><th>Start</th><th>End</th><th>Monthly rent</th><th>Status</th></tr></thead><tbody>
                   {scopedContracts.length === 0 ? <tr><td colSpan={7}>No contracts found.</td></tr> : reportSlice(scopedContracts).map((contract, index) => { const tenant = tenants.find((item) => String(item.id) === String(contract.tenant_id)); const unit = units.find((item) => String(item.id) === String(contract.unit_id)); return <tr key={contract.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant?.full_name || tenant?.company_name || "-"}</td><td>{unit?.number || "-"}</td><td>{dateOnly(contract.start_date)}</td><td>{dateOnly(contract.end_date)}</td><td>{formatAmount(contract.monthly_rent)}</td><td><span className={`table-status ${contract.status.toLowerCase()}`}>{contract.status}</span></td></tr>; })}
                 </tbody><tfoot><tr><td colSpan={5}>Total monthly rent</td><td>{formatAmount(totalContractRent)}</td><td></td></tr></tfoot></table></div>
                 <div className="pagination"><span>Showing {reportSlice(scopedContracts).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, scopedContracts.length)} of {scopedContracts.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(scopedContracts)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
@@ -3152,13 +3222,13 @@ function App() {
                 type="button"
                 onClick={() => goTo("/units/new")}
               >
-                + Add unit(s)
+                + Add room(s)
               </button>
             )}
             {unitPageMode === "create" && (
               <form className="panel form-panel" onSubmit={handleUnitSubmit}>
                 <div className="section-heading">
-                  <h2>{editingUnitID ? "Edit unit" : "Add units"}</h2>
+                  <h2>{editingUnitID ? "Edit room" : "Add rooms"}</h2>
                   <div>
                     {!editingUnitID && <button className="secondary-button" type="button" onClick={addUnitRow}>+ Add row</button>}
                     <button
@@ -3200,7 +3270,7 @@ function App() {
                         onChange={(event) =>
                           updateUnitRow(rowIndex, "number", event.target.value)
                         }
-                        placeholder="Unit no."
+                        placeholder="Room no."
                         required
                       />
                       <select
@@ -3254,16 +3324,16 @@ function App() {
                     </div>
                   ))}
                 </div>
-                <button className="primary-button" type="submit">{editingUnitID ? "Save changes" : "Save unit"}</button>
+                <button className="primary-button" type="submit">{editingUnitID ? "Save changes" : "Save room"}</button>
               </form>
             )}
             {unitPageMode === "rent" && (
               <form className="panel form-panel rent-panel" onSubmit={handleContractSubmit}>
                 <div className="section-heading">
-                  <h2>Rent unit</h2>
+                  <h2>Rent room</h2>
                   <button className="secondary-button" type="button" onClick={() => { setRentUnitID(null); goTo("/units"); }}>Back to list</button>
                 </div>
-                <p className="empty-state">{selectedBuilding?.name} · Unit {units.find((unit) => unit.id === rentUnitID)?.number}</p>
+                <p className="empty-state">{selectedBuilding?.name} · Room {units.find((unit) => unit.id === rentUnitID)?.number}</p>
                 <label>Tenant<select name="tenant_id" value={contractForm.tenant_id} onChange={handleContractChange} required><option value="">Select tenant</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}</select></label>
                 <div className="inline-fields"><label>Start date<input type="date" name="start_date" value={contractForm.start_date} onChange={handleContractChange} required /></label><label>Period (months)<input type="number" min="1" name="period" value={contractForm.period} onChange={handleContractChange} required /></label></div>
                 <div className="inline-fields"><label>End date<input type="date" value={calculatedEndDate} readOnly /></label><label>Required monthly rent<input inputMode="decimal" value={contractForm.monthly_rent} readOnly /></label></div>
@@ -3278,8 +3348,8 @@ function App() {
               <div className="section-heading">
                 <h2>
                   {selectedBuilding
-                    ? `${selectedBuilding.name} units`
-                    : "Units"}
+                    ? `${selectedBuilding.name} rooms`
+                    : "Rooms"}
                 </h2>
                 <span>{filteredUnits.length} entries</span>
               </div>
@@ -3361,7 +3431,7 @@ function App() {
                     <tbody>
                       {visibleUnits.length === 0 ? (
                         <tr>
-                          <td colSpan={selectedBuildingID === "hq" ? 8 : 7}>No units match these filters.</td>
+                          <td colSpan={selectedBuildingID === "hq" ? 8 : 7}>No rooms match these filters.</td>
                         </tr>
                       ) : (
                         visibleUnits.map((unit, index) => (
@@ -3820,14 +3890,14 @@ function App() {
                   </select>
                 </label>
                 <label>
-                  Unit
+                  Room
                   <select
                     name="unit_id"
                     value={contractForm.unit_id}
                     onChange={handleContractChange}
                     disabled={contractPageMode === "edit"}
                   >
-                    <option value="">Select unit</option>
+                    <option value="">Select room</option>
                     {units.map((unit) => {
                       const building = buildings.find((b) => String(b.id) === String(unit.building_id));
                       return (
@@ -4007,7 +4077,7 @@ function App() {
                 <div className="section-heading"><h2>Record invoice payment</h2><button className="secondary-button" type="button" onClick={() => { setPayingInvoiceID(null); setPaymentForm(defaultPaymentForm); goTo("/invoices"); }}>Back to invoices</button></div>
                 <div className="payment-context">
                   <div><span>Customer</span><strong>{tenant?.full_name || tenant?.company_name || "-"}</strong></div>
-                  <div><span>Unit</span><strong>{unit?.number || "-"}</strong></div>
+                  <div><span>Room</span><strong>{unit?.number || "-"}</strong></div>
                   <div><span>Invoice</span><strong>{invoice?.number || "-"}</strong></div>
                   <div><span>Balance</span><strong>{formatAmount(balance)}</strong></div>
                 </div>
@@ -4163,15 +4233,45 @@ function App() {
                 <input type="date" value={paymentDateFrom} onChange={(event) => { setPaymentDateFrom(event.target.value); setPaymentPage(1); }} aria-label="From date" />
                 <input type="date" value={paymentDateTo} onChange={(event) => { setPaymentDateTo(event.target.value); setPaymentPage(1); }} aria-label="To date" />
                 <select value={paymentTenantFilter} onChange={(event) => { setPaymentTenantFilter(event.target.value); setPaymentPage(1); }}><option value="All">All customers</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}</select>
-                <select value={paymentUnitFilter} onChange={(event) => { setPaymentUnitFilter(event.target.value); setPaymentPage(1); }}><option value="All">All units</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.number}</option>)}</select>
+                <select value={paymentUnitFilter} onChange={(event) => { setPaymentUnitFilter(event.target.value); setPaymentPage(1); }}><option value="All">All rooms</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.number}</option>)}</select>
                 <select value={paymentMethodFilter} onChange={(event) => { setPaymentMethodFilter(event.target.value); setPaymentPage(1); }}><option>All</option><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Card</option><option>Cheque</option></select>
                 <select value={paymentInvoiceFilter} onChange={(event) => { setPaymentInvoiceFilter(event.target.value); setPaymentPage(1); }}><option value="All">All invoices</option>{invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number}</option>)}</select>
                 <select value={paymentPageSize} onChange={(event) => { setPaymentPageSize(Number(event.target.value)); setPaymentPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
               </div>
-              <div className="unit-table-wrap"><table className="unit-table payment-table"><thead><tr><th>No.</th><th>Date</th><th>Customer</th><th>Unit</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Receipt</th><th>Amount</th></tr></thead><tbody>
+              <div className="unit-table-wrap"><table className="unit-table payment-table"><thead><tr><th>No.</th><th>Date</th><th>Customer</th><th>Room</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Receipt</th><th>Amount</th></tr></thead><tbody>
                 {visiblePayments.length === 0 ? <tr><td colSpan={9}>No payments match these filters.</td></tr> : visiblePayments.map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(paymentPage - 1) * paymentPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "Unknown customer"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{payment.receipt_number || "-"}</td><td><strong>{formatAmount(payment.amount)}</strong></td></tr>; })}
               </tbody><tfoot><tr><td colSpan={8}>Filtered total</td><td>{formatAmount(filteredPaymentTotal)}</td></tr></tfoot></table></div>
               <div className="pagination"><span>Showing {visiblePayments.length ? (paymentPage - 1) * paymentPageSize + 1 : 0} to {Math.min(paymentPage * paymentPageSize, filteredPayments.length)} of {filteredPayments.length}</span><div><button type="button" disabled={paymentPage === 1} onClick={() => setPaymentPage((page) => page - 1)}>Previous</button><strong>{paymentPage}</strong><button type="button" disabled={paymentPage >= paymentPageCount} onClick={() => setPaymentPage((page) => page + 1)}>Next</button></div></div>
+            </div>}
+          </div>
+        )}
+
+        {view === "expenses" && (
+          <div className={`payments-workspace ${expenseEntryMode}`}>
+            {expenseEntryMode === "list" && <button className="secondary-button payments-add-button" type="button" onClick={() => goTo("/expenses/new")}>+ Record expense</button>}
+            {expenseEntryMode === "create" && <form className="panel form-panel payment-entry-panel" onSubmit={handleExpenseSubmit}>
+              <div className="section-heading"><h2>Record expense</h2><button className="secondary-button" type="button" onClick={() => { setExpenseForm(defaultExpenseForm); goTo("/expenses"); }}>Back to list</button></div>
+              {selectedBuildingID === "hq" && <label>Building<select value={expenseForm.building_id} onChange={(event) => setExpenseForm((current) => ({ ...current, building_id: event.target.value }))} required><option value="">Select building</option>{buildings.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>}
+              <label>Category<select value={expenseForm.category_id} onChange={(event) => setExpenseForm((current) => ({ ...current, category_id: event.target.value }))} required><option value="">Select category</option>{expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              <div className="inline-fields">
+                <label>Amount<input inputMode="decimal" value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: formatAmount(event.target.value) }))} required /></label>
+                <label>Date<input type="date" value={expenseForm.expense_date} onChange={(event) => setExpenseForm((current) => ({ ...current, expense_date: event.target.value }))} required /></label>
+              </div>
+              <label>Reference<input value={expenseForm.reference} onChange={(event) => setExpenseForm((current) => ({ ...current, reference: event.target.value }))} placeholder="Optional reference" /></label>
+              <label>Notes<textarea value={expenseForm.notes} onChange={(event) => setExpenseForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional expense notes" /></label>
+              <button className="primary-button" type="submit">Record expense</button>
+            </form>}
+            {expenseEntryMode === "list" && <div className="panel list-panel payment-ledger-panel">
+              <div className="section-heading"><h2>Expense history</h2><span>{filteredExpenseEntries.length} entries · Total {formatAmount(filteredExpenseEntriesTotal)}</span></div>
+              <div className="payment-filters">
+                <input value={expenseEntrySearch} onChange={(event) => { setExpenseEntrySearch(event.target.value); setExpenseEntryPage(1); }} placeholder="Search category, reference, notes" />
+                <select value={expenseEntryCategoryFilter} onChange={(event) => { setExpenseEntryCategoryFilter(event.target.value); setExpenseEntryPage(1); }}><option value="All">All categories</option>{expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
+                <select value={expenseEntryPageSize} onChange={(event) => { setExpenseEntryPageSize(Number(event.target.value)); setExpenseEntryPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
+              </div>
+              <div className="unit-table-wrap"><table className="unit-table payment-table"><thead><tr><th>No.</th><th>Date</th><th>Building</th><th>Category</th><th>Reference</th><th>Notes</th><th>Amount</th></tr></thead><tbody>
+                {visibleExpenseEntries.length === 0 ? <tr><td colSpan={7}>No expenses match these filters.</td></tr> : visibleExpenseEntries.map((expense, index) => { const category = expenseCategories.find((item) => String(item.id) === String(expense.category_id)); const building = buildings.find((item) => String(item.id) === String(expense.building_id)); return <tr key={expense.id}><td>{(expenseEntryPage - 1) * expenseEntryPageSize + index + 1}</td><td>{dateOnly(expense.expense_date)}</td><td>{building?.name || "-"}</td><td>{category?.name || "-"}</td><td>{expense.reference || "-"}</td><td>{expense.notes || "-"}</td><td><strong>{formatAmount(expense.amount)}</strong></td></tr>; })}
+              </tbody><tfoot><tr><td colSpan={6}>Filtered total</td><td>{formatAmount(filteredExpenseEntriesTotal)}</td></tr></tfoot></table></div>
+              <div className="pagination"><span>Showing {visibleExpenseEntries.length ? (expenseEntryPage - 1) * expenseEntryPageSize + 1 : 0} to {Math.min(expenseEntryPage * expenseEntryPageSize, filteredExpenseEntries.length)} of {filteredExpenseEntries.length}</span><div><button type="button" disabled={expenseEntryPage === 1} onClick={() => setExpenseEntryPage((page) => page - 1)}>Previous</button><strong>{expenseEntryPage}</strong><button type="button" disabled={expenseEntryPage >= expenseEntryPageCount} onClick={() => setExpenseEntryPage((page) => page + 1)}>Next</button></div></div>
             </div>}
           </div>
         )}
