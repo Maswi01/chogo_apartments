@@ -359,6 +359,9 @@ function App() {
   const [reportPage, setReportPage] = useState(1);
   const [reportPageSize, setReportPageSize] = useState(10);
   const [reportTenantID, setReportTenantID] = useState("");
+  const [reportSearch, setReportSearch] = useState("");
+  const [reportDateFrom, setReportDateFrom] = useState("");
+  const [reportDateTo, setReportDateTo] = useState("");
   const [expenseEntryMode, setExpenseEntryMode] = useState<"list" | "create">("list");
   const [expenseEntrySearch, setExpenseEntrySearch] = useState("");
   const [expenseEntryCategoryFilter, setExpenseEntryCategoryFilter] = useState("All");
@@ -1787,6 +1790,11 @@ function App() {
 
   const showView = (nextView: View) => {
     setFormError("");
+    setRegistrationNavOpen(nextView === "registration");
+    setReportsNavOpen(nextView === "reports");
+    if (nextView === "home") {
+      goTo(selectedBuildingID === "hq" ? "/" : "/home");
+    }
     if (nextView === "buildings") {
       resetBuildingList();
       goTo("/buildings");
@@ -1836,10 +1844,6 @@ function App() {
   );
   const activeContracts = scopedContracts.filter(
     (contract) => contract.status === "Active",
-  );
-  const expiring7 = activeContracts.filter(
-    (contract) =>
-      daysUntil(contract.end_date) >= 0 && daysUntil(contract.end_date) <= 7,
   );
   const expiring30 = activeContracts.filter(
     (contract) =>
@@ -1892,9 +1896,68 @@ function App() {
     0,
   );
   const totalOutstanding = Math.max(0, totalInvoiced - totalPaid);
+  const occupiedUnits = units.filter((unit) => unit.status === "Occupied").length;
+  const vacantUnits = units.filter((unit) => unit.status === "Vacant").length;
+  const totalUnits = units.length;
+  const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
+  const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0;
+  const tenantLabel = (id: string | number) => {
+    const tenant = tenants.find((item) => String(item.id) === String(id));
+    return tenant?.full_name || tenant?.company_name || `Tenant #${id}`;
+  };
+  const roomLabel = (id: string | number) =>
+    units.find((item) => String(item.id) === String(id))?.number || `Room #${id}`;
   const statementTenants = reportTenantID
     ? tenants.filter((tenant) => String(tenant.id) === reportTenantID)
     : tenants;
+  const reportSearchLower = reportSearch.toLowerCase();
+  const inReportRange = (date: string) => {
+    const value = dateOnly(date);
+    if (reportDateFrom && value < reportDateFrom) return false;
+    if (reportDateTo && value > reportDateTo) return false;
+    return true;
+  };
+  const filteredReportTenants = statementTenants.filter((tenant) =>
+    !reportSearchLower ||
+    (tenant.full_name || "").toLowerCase().includes(reportSearchLower) ||
+    (tenant.company_name || "").toLowerCase().includes(reportSearchLower) ||
+    (tenant.phone || "").toLowerCase().includes(reportSearchLower),
+  );
+  const filteredReportPayments = scopedPayments.filter((payment) => {
+    const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id));
+    const unit = units.find((item) => String(item.id) === String(payment.unit_id));
+    const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id));
+    const matchesSearch =
+      !reportSearchLower ||
+      [tenant?.full_name, tenant?.company_name, unit?.number, invoice?.number, payment.payment_reference, payment.payment_method]
+        .some((value) => (value || "").toString().toLowerCase().includes(reportSearchLower));
+    return matchesSearch && inReportRange(payment.payment_date);
+  });
+  const filteredReportPaymentsTotal = filteredReportPayments.reduce((total, payment) => total + payment.amount, 0);
+  const filteredReportExpenses = scopedExpenses.filter((expense) => {
+    const category = expenseCategories.find((item) => String(item.id) === String(expense.category_id));
+    const building = buildings.find((item) => String(item.id) === String(expense.building_id));
+    const matchesSearch =
+      !reportSearchLower ||
+      [category?.name, building?.name, expense.reference, expense.notes]
+        .some((value) => (value || "").toLowerCase().includes(reportSearchLower));
+    return matchesSearch && inReportRange(expense.expense_date);
+  });
+  const filteredReportExpensesTotal = filteredReportExpenses.reduce((total, expense) => total + expense.amount, 0);
+  const filteredReportContracts = scopedContracts.filter((contract) => {
+    const tenant = tenants.find((item) => String(item.id) === String(contract.tenant_id));
+    const unit = units.find((item) => String(item.id) === String(contract.unit_id));
+    const matchesSearch =
+      !reportSearchLower ||
+      [tenant?.full_name, tenant?.company_name, unit?.number, contract.status]
+        .some((value) => (value || "").toString().toLowerCase().includes(reportSearchLower));
+    const matchesDate =
+      (!reportDateFrom && !reportDateTo) ||
+      inReportRange(contract.start_date) ||
+      inReportRange(contract.end_date);
+    return matchesSearch && matchesDate;
+  });
+  const filteredReportContractRent = filteredReportContracts.reduce((total, contract) => total + contract.monthly_rent, 0);
   const filteredExpenseEntries = scopedExpenses.filter((expense) => {
     const search = expenseEntrySearch.toLowerCase();
     const category = expenseCategories.find(
@@ -2071,12 +2134,6 @@ function App() {
                 </button>
                 {reportsNavOpen && reportLinks}
               </div>
-              <button
-                className={`nav-link ${view === "expenses" ? "active" : ""}`}
-                onClick={() => showView("expenses")}
-              >
-                Expenses
-              </button>
             </>
           ) : (
             <>
@@ -2174,7 +2231,7 @@ function App() {
             <div className="dashboard-heading">
               <div>
                 <p className="eyebrow">HQ / Administration</p>
-                <h2>ADMINISTRATION OWNER UPDATES - ALL BUILDINGS</h2>
+                <h2>Portfolio overview · all buildings</h2>
               </div>
               <span className="updated-date">
                 Updated: {today.toLocaleDateString("en-GB")}
@@ -2182,46 +2239,46 @@ function App() {
             </div>
             <div className="stats-grid dashboard-stats">
               <div className="stat-card">
+                <span>Buildings</span>
+                <strong>{buildings.length}</strong>
+              </div>
+              <div className="stat-card">
+                <span>Rooms (occupied / total)</span>
+                <strong>{occupiedUnits} / {totalUnits}</strong>
+              </div>
+              <div className="stat-card">
+                <span>Occupancy rate</span>
+                <strong>{occupancyRate}%</strong>
+              </div>
+              <div className="stat-card">
                 <span>Active contracts</span>
                 <strong>{activeContracts.length}</strong>
               </div>
               <div className="stat-card">
-                <span>Expiring 7 days</span>
-                <strong>{expiring7.length}</strong>
+                <span>Unpaid invoices</span>
+                <strong>{unpaidInvoices.length}</strong>
               </div>
               <div className="stat-card">
                 <span>Expiring 30 days</span>
                 <strong>{expiring30.length}</strong>
               </div>
-              <div className="stat-card">
-                <span>Expired in progress</span>
-                <strong>{expiredContracts.length}</strong>
-              </div>
-              <div className="stat-card">
-                <span>Unpaid active</span>
-                <strong>{unpaidInvoices.length}</strong>
-              </div>
-              <div className="stat-card">
-                <span>Payments today</span>
-                <strong>{paymentsToday.length}</strong>
-              </div>
             </div>
             <div className="amount-summary">
               <div>
-                <span>Expected rent</span>
+                <span>Expected monthly rent</span>
                 <strong>{formatAmount(totalContractRent)}</strong>
               </div>
               <div>
-                <span>Invoiced</span>
-                <strong>{formatAmount(totalInvoiced)}</strong>
-              </div>
-              <div>
-                <span>Collected</span>
+                <span>Collected ({collectionRate}%)</span>
                 <strong>{formatAmount(totalPaid)}</strong>
               </div>
               <div>
                 <span>Outstanding</span>
                 <strong>{formatAmount(totalOutstanding)}</strong>
+              </div>
+              <div>
+                <span>Expenses</span>
+                <strong>{formatAmount(totalExpenses)}</strong>
               </div>
             </div>
             <div className="hq-section-heading">
@@ -2232,20 +2289,28 @@ function App() {
               <span>Choose a branch to enter its workspace</span>
             </div>
             <div className="branch-grid">
-              {branchCards.map((branch) => (
-                <button
-                  className="branch-card"
-                  key={branch.building.id}
-                  onClick={() => switchBuilding(String(branch.building.id))}
-                >
-                  <span>BRANCH: {branch.building.code}</span>
-                  <strong>{branch.active} active</strong>
-                  <small>
-                    {branch.expiring30} expiring in 30d · {branch.expired}{" "}
-                    expired · {branch.unpaid} unpaid
-                  </small>
-                </button>
-              ))}
+              {branchCards.length === 0 ? (
+                <p className="empty-state">No buildings registered yet.</p>
+              ) : (
+                branchCards.map((branch) => {
+                  const branchRent = contracts
+                    .filter((contract) => String(contract.building_id) === String(branch.building.id) && contract.status === "Active")
+                    .reduce((total, contract) => total + contract.monthly_rent, 0);
+                  return (
+                    <button
+                      className="branch-card"
+                      key={branch.building.id}
+                      onClick={() => switchBuilding(String(branch.building.id))}
+                    >
+                      <span>{branch.building.name} · {branch.building.code}</span>
+                      <strong>{branch.active} active contracts</strong>
+                      <small>
+                        Rent {formatAmount(branchRent)} · {branch.expiring30} expiring 30d · {branch.expired} expired · {branch.unpaid} unpaid
+                      </small>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
@@ -2256,7 +2321,7 @@ function App() {
                 <p className="eyebrow">
                   Branch dashboard · {selectedBuilding.code}
                 </p>
-                <h2>OWNER UPDATES - {selectedBuilding.name}</h2>
+                <h2>{selectedBuilding.name} · overview</h2>
               </div>
               <span className="updated-date">
                 Updated: {today.toLocaleDateString("en-GB")}
@@ -2264,23 +2329,23 @@ function App() {
             </div>
             <div className="stats-grid dashboard-stats">
               <div className="stat-card">
-                <span>Active contracts</span>
-                <strong>{activeContracts.length}</strong>
+                <span>Occupied rooms</span>
+                <strong>{occupiedUnits} / {totalUnits}</strong>
               </div>
               <div className="stat-card">
-                <span>Expiring 7 days</span>
-                <strong>{expiring7.length}</strong>
+                <span>Vacant rooms</span>
+                <strong>{vacantUnits}</strong>
+              </div>
+              <div className="stat-card">
+                <span>Active contracts</span>
+                <strong>{activeContracts.length}</strong>
               </div>
               <div className="stat-card">
                 <span>Expiring 30 days</span>
                 <strong>{expiring30.length}</strong>
               </div>
               <div className="stat-card">
-                <span>Expired in progress</span>
-                <strong>{expiredContracts.length}</strong>
-              </div>
-              <div className="stat-card">
-                <span>Unpaid active</span>
+                <span>Unpaid invoices</span>
                 <strong>{unpaidInvoices.length}</strong>
               </div>
               <div className="stat-card">
@@ -2290,20 +2355,20 @@ function App() {
             </div>
             <div className="amount-summary">
               <div>
-                <span>Expected rent</span>
+                <span>Expected monthly rent</span>
                 <strong>{formatAmount(totalContractRent)}</strong>
               </div>
               <div>
-                <span>Invoiced</span>
-                <strong>{formatAmount(totalInvoiced)}</strong>
-              </div>
-              <div>
-                <span>Collected</span>
+                <span>Collected ({collectionRate}%)</span>
                 <strong>{formatAmount(totalPaid)}</strong>
               </div>
               <div>
                 <span>Outstanding</span>
                 <strong>{formatAmount(totalOutstanding)}</strong>
+              </div>
+              <div>
+                <span>Expenses</span>
+                <strong>{formatAmount(totalExpenses)}</strong>
               </div>
             </div>
             <div className="dashboard-columns">
@@ -2319,8 +2384,8 @@ function App() {
                 ) : (
                   expiring30.map((contract) => (
                     <div className="dashboard-row" key={contract.id}>
-                      <strong>{contract.tenant_id}</strong>
-                      <span>{contract.unit_id}</span>
+                      <strong>{tenantLabel(contract.tenant_id)}</strong>
+                      <span>Room {roomLabel(contract.unit_id)}</span>
                       <span>{dateOnly(contract.end_date)}</span>
                       <button
                         className="row-action"
@@ -2342,8 +2407,8 @@ function App() {
                 ) : (
                   expiredContracts.map((contract) => (
                     <div className="dashboard-row" key={contract.id}>
-                      <strong>{contract.tenant_id}</strong>
-                      <span>{contract.unit_id}</span>
+                      <strong>{tenantLabel(contract.tenant_id)}</strong>
+                      <span>Room {roomLabel(contract.unit_id)}</span>
                       <span>{dateOnly(contract.end_date)}</span>
                       <button
                         className="row-action"
@@ -2365,8 +2430,8 @@ function App() {
                 ) : (
                   unpaidInvoices.map((invoice) => (
                     <div className="dashboard-row" key={invoice.id}>
-                      <strong>{invoice.number}</strong>
-                      <span>{invoice.status}</span>
+                      <strong>{tenantLabel(invoice.tenant_id)}</strong>
+                      <span>{invoice.number} · {invoice.status}</span>
                       <span>{formatAmount(invoice.amount)}</span>
                       <button
                         className="row-action"
@@ -2388,8 +2453,8 @@ function App() {
                 ) : (
                   paymentsToday.map((payment) => (
                     <div className="dashboard-row" key={payment.id}>
-                      <strong>{payment.payment_reference}</strong>
-                      <span>{payment.payment_method}</span>
+                      <strong>{tenantLabel(payment.tenant_id)}</strong>
+                      <span>{payment.payment_method} · {payment.payment_reference}</span>
                       <span>{formatAmount(payment.amount)}</span>
                     </div>
                   ))
@@ -2910,6 +2975,20 @@ function App() {
               </p>
             </div>
             <div className="report-controls">
+              {reportMode !== "cashflow" && (
+                <input
+                  className="report-search"
+                  value={reportSearch}
+                  onChange={(event) => { setReportSearch(event.target.value); setReportPage(1); }}
+                  placeholder={reportMode === "tenants" ? "Search name or phone" : reportMode === "transactions" ? "Search tenant, room, reference" : reportMode === "expenses" ? "Search category, notes, reference" : reportMode === "rent" ? "Search tenant, room, status" : "Search"}
+                />
+              )}
+              {(reportMode === "transactions" || reportMode === "expenses" || reportMode === "rent") && (
+                <>
+                  <input type="date" value={reportDateFrom} onChange={(event) => { setReportDateFrom(event.target.value); setReportPage(1); }} aria-label="From date" />
+                  <input type="date" value={reportDateTo} onChange={(event) => { setReportDateTo(event.target.value); setReportPage(1); }} aria-label="To date" />
+                </>
+              )}
               <select value={reportPageSize} onChange={(event) => { setReportPageSize(Number(event.target.value)); setReportPage(1); }}>
                 <option value="10">10 entries</option>
                 <option value="25">25 entries</option>
@@ -2918,7 +2997,7 @@ function App() {
             </div>
             {reportMode === "tenants" && (
               <div className="panel list-panel report-panel">
-                <div className="section-heading"><h2>{selectedBuildingID === "hq" ? "All tenants by building" : "Tenant statement"}</h2><span>{statementTenants.length} {statementTenants.length === 1 ? "entry" : "entries"}</span></div>
+                <div className="section-heading"><h2>{selectedBuildingID === "hq" ? "All tenants by building" : "Tenant statement"}</h2><span>{filteredReportTenants.length} {filteredReportTenants.length === 1 ? "entry" : "entries"}</span></div>
                 <div className="report-controls">
                   <select value={reportTenantID} onChange={(event) => { setReportTenantID(event.target.value); setReportPage(1); }}>
                     <option value="">All tenants</option>
@@ -2926,14 +3005,14 @@ function App() {
                   </select>
                 </div>
                 <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Phone</th>{selectedBuildingID === "hq" && <th>Building</th>}<th>Rooms</th><th>Active contracts</th><th>Total rent</th></tr></thead><tbody>
-                  {statementTenants.length === 0 ? <tr><td colSpan={selectedBuildingID === "hq" ? 7 : 6}>No tenants found.</td></tr> : reportSlice(statementTenants).map((tenant, index) => {
+                  {filteredReportTenants.length === 0 ? <tr><td colSpan={selectedBuildingID === "hq" ? 7 : 6}>No tenants found.</td></tr> : reportSlice(filteredReportTenants).map((tenant, index) => {
                     const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
                     const tenantUnits = tenantContracts.map((contract) => units.find((unit) => String(unit.id) === String(contract.unit_id))?.number).filter(Boolean);
                     const building = buildings.find((item) => String(item.id) === String(tenant.building_id));
                     return <tr key={tenant.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</td><td>{tenant.phone || "-"}</td>{selectedBuildingID === "hq" && <td>{building?.name || "-"}</td>}<td>{tenantUnits.length ? tenantUnits.join(", ") : "-"}</td><td>{tenantContracts.length}</td><td>{formatAmount(tenantContracts.reduce((total, contract) => total + contract.monthly_rent, 0))}</td></tr>;
                   })}
                 </tbody></table></div>
-                <div className="pagination"><span>Showing {reportSlice(statementTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, statementTenants.length)} of {statementTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(statementTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                <div className="pagination"><span>Showing {reportSlice(filteredReportTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportTenants.length)} of {filteredReportTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
                 {reportTenantID && (() => {
                   const tenant = tenants.find((item) => String(item.id) === reportTenantID);
                   if (!tenant) return null;
@@ -2965,20 +3044,20 @@ function App() {
             )}
             {reportMode === "transactions" && (
               <div className="panel list-panel report-panel">
-                <div className="section-heading"><h2>Transaction statement</h2><span>Total {formatAmount(scopedPayments.reduce((total, payment) => total + payment.amount, 0))}</span></div>
+                <div className="section-heading"><h2>Transaction statement</h2><span>Total {formatAmount(filteredReportPaymentsTotal)}</span></div>
                 <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Date</th><th>Tenant</th><th>Room</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Amount</th></tr></thead><tbody>
-                  {scopedPayments.length === 0 ? <tr><td colSpan={8}>No transactions recorded.</td></tr> : reportSlice(scopedPayments).map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "-"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{formatAmount(payment.amount)}</td></tr>; })}
+                  {filteredReportPayments.length === 0 ? <tr><td colSpan={8}>No transactions match these filters.</td></tr> : reportSlice(filteredReportPayments).map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "-"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{formatAmount(payment.amount)}</td></tr>; })}
                 </tbody></table></div>
-                <div className="pagination"><span>Showing {reportSlice(scopedPayments).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, scopedPayments.length)} of {scopedPayments.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(scopedPayments)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                <div className="pagination"><span>Showing {reportSlice(filteredReportPayments).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportPayments.length)} of {filteredReportPayments.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportPayments)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
               </div>
             )}
             {reportMode === "expenses" && (
               <div className="panel list-panel report-panel">
-                <div className="section-heading"><h2>Expenses statement</h2><span>Total {formatAmount(totalExpenses)}</span></div>
+                <div className="section-heading"><h2>Expenses statement</h2><span>Total {formatAmount(filteredReportExpensesTotal)}</span></div>
                 <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Date</th><th>Building</th><th>Category</th><th>Reference</th><th>Notes</th><th>Amount</th></tr></thead><tbody>
-                  {scopedExpenses.length === 0 ? <tr><td colSpan={7}>No expenses recorded.</td></tr> : reportSlice(scopedExpenses).map((expense, index) => { const category = expenseCategories.find((item) => String(item.id) === String(expense.category_id)); const building = buildings.find((item) => String(item.id) === String(expense.building_id)); return <tr key={expense.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{dateOnly(expense.expense_date)}</td><td>{building?.name || "-"}</td><td>{category?.name || "-"}</td><td>{expense.reference || "-"}</td><td>{expense.notes || "-"}</td><td>{formatAmount(expense.amount)}</td></tr>; })}
-                </tbody><tfoot><tr><td colSpan={6}>Total expenses</td><td>{formatAmount(totalExpenses)}</td></tr></tfoot></table></div>
-                <div className="pagination"><span>Showing {reportSlice(scopedExpenses).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, scopedExpenses.length)} of {scopedExpenses.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(scopedExpenses)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                  {filteredReportExpenses.length === 0 ? <tr><td colSpan={7}>No expenses match these filters.</td></tr> : reportSlice(filteredReportExpenses).map((expense, index) => { const category = expenseCategories.find((item) => String(item.id) === String(expense.category_id)); const building = buildings.find((item) => String(item.id) === String(expense.building_id)); return <tr key={expense.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{dateOnly(expense.expense_date)}</td><td>{building?.name || "-"}</td><td>{category?.name || "-"}</td><td>{expense.reference || "-"}</td><td>{expense.notes || "-"}</td><td>{formatAmount(expense.amount)}</td></tr>; })}
+                </tbody><tfoot><tr><td colSpan={6}>Total expenses</td><td>{formatAmount(filteredReportExpensesTotal)}</td></tr></tfoot></table></div>
+                <div className="pagination"><span>Showing {reportSlice(filteredReportExpenses).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportExpenses.length)} of {filteredReportExpenses.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportExpenses)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
               </div>
             )}
             {reportMode === "cashflow" && (
@@ -2989,11 +3068,11 @@ function App() {
             )}
             {reportMode === "rent" && (
               <div className="panel list-panel report-panel">
-                <div className="section-heading"><h2>Monthly rent report</h2><span>Total {formatAmount(totalContractRent)}</span></div>
+                <div className="section-heading"><h2>Monthly rent report</h2><span>Total {formatAmount(filteredReportContractRent)}</span></div>
                 <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Room</th><th>Start</th><th>End</th><th>Monthly rent</th><th>Status</th></tr></thead><tbody>
-                  {scopedContracts.length === 0 ? <tr><td colSpan={7}>No contracts found.</td></tr> : reportSlice(scopedContracts).map((contract, index) => { const tenant = tenants.find((item) => String(item.id) === String(contract.tenant_id)); const unit = units.find((item) => String(item.id) === String(contract.unit_id)); return <tr key={contract.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant?.full_name || tenant?.company_name || "-"}</td><td>{unit?.number || "-"}</td><td>{dateOnly(contract.start_date)}</td><td>{dateOnly(contract.end_date)}</td><td>{formatAmount(contract.monthly_rent)}</td><td><span className={`table-status ${contract.status.toLowerCase()}`}>{contract.status}</span></td></tr>; })}
-                </tbody><tfoot><tr><td colSpan={5}>Total monthly rent</td><td>{formatAmount(totalContractRent)}</td><td></td></tr></tfoot></table></div>
-                <div className="pagination"><span>Showing {reportSlice(scopedContracts).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, scopedContracts.length)} of {scopedContracts.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(scopedContracts)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                  {filteredReportContracts.length === 0 ? <tr><td colSpan={7}>No contracts match these filters.</td></tr> : reportSlice(filteredReportContracts).map((contract, index) => { const tenant = tenants.find((item) => String(item.id) === String(contract.tenant_id)); const unit = units.find((item) => String(item.id) === String(contract.unit_id)); return <tr key={contract.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant?.full_name || tenant?.company_name || "-"}</td><td>{unit?.number || "-"}</td><td>{dateOnly(contract.start_date)}</td><td>{dateOnly(contract.end_date)}</td><td>{formatAmount(contract.monthly_rent)}</td><td><span className={`table-status ${contract.status.toLowerCase()}`}>{contract.status}</span></td></tr>; })}
+                </tbody><tfoot><tr><td colSpan={5}>Total monthly rent</td><td>{formatAmount(filteredReportContractRent)}</td><td></td></tr></tfoot></table></div>
+                <div className="pagination"><span>Showing {reportSlice(filteredReportContracts).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportContracts.length)} of {filteredReportContracts.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportContracts)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
               </div>
             )}
           </div>
