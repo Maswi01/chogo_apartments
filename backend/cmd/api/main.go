@@ -351,7 +351,7 @@ func openDatabase() (*sql.DB, error) {
 	config.Passwd = os.Getenv("DB_PASSWORD")
 	config.Net = "tcp"
 	config.Addr = envOrDefault("DB_HOST", "127.0.0.1") + ":" + envOrDefault("DB_PORT", "3306")
-	config.DBName = envOrDefault("DB_NAME", "chogo_apartments")
+	config.DBName = os.Getenv("DB_NAME")
 	config.ParseTime = true
 
 	database, err := sql.Open("mysql", config.FormatDSN())
