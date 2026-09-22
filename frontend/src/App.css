@@ -9,6 +9,7 @@
 .table-link { border: none; background: none; padding: 0; color: var(--pine); font: 700 13px 'DM Sans', sans-serif; cursor: pointer; text-decoration: underline; }
 .statement-meta { margin: 0 0 16px; color: var(--muted); font-size: 13px; }.statement-meta strong { color: var(--ink); }
 .report-empty { margin: 0; padding: 44px 6px; color: var(--muted); font-size: 14px; text-align: center; }
+.tenant-select-controls { justify-content: center; }.tenant-select-controls select { width: min(100%, 520px); }
 .brand-muted { color: #9dc9ad; }
 .user-name { margin: -19px 0 28px 52px; color: #a9cbb8; font-size: 12px; }
 .nav { display: flex; flex-direction: column; gap: 4px; }

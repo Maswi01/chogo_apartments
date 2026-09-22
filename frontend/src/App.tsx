@@ -3131,7 +3131,7 @@ function App() {
             </div>
             {reportMode === "tenants" && (
               <div className="panel list-panel report-panel">
-                <div className="report-controls">
+                <div className="report-controls tenant-select-controls">
                   <select value={reportTenantID} onChange={(event) => { const id = event.target.value; setReportPage(1); if (selectedBuildingID === "hq") { setReportTenantID(id); return; } if (id) { goTo(`/reports/tenant-statement/${id}`); } else { goTo("/reports/tenants"); } }}>
                     <option value="">{selectedBuildingID === "hq" ? "All tenants" : "Select tenant…"}</option>
                     {tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</option>)}
