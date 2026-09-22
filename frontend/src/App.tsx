@@ -410,7 +410,8 @@ function App() {
     if (path === "/expenses/new") setExpenseEntryMode("create");
     if (path === "/buildings") setBuildingPageMode("list");
     if (path === "/buildings/new") setBuildingPageMode("create");
-    if (path === "/reports/tenants") { setReportMode("tenants"); setReportPage(1); }
+    if (path === "/reports/tenants") { setReportMode("tenants"); setReportPage(1); setReportTenantID(""); }
+    if (path.startsWith("/reports/tenant-statement/")) { setReportMode("tenants"); setReportPage(1); setReportTenantID(path.split("/").pop() || ""); }
     if (path === "/reports/transactions") { setReportMode("transactions"); setReportPage(1); }
     if (path === "/reports/expenses") { setReportMode("expenses"); setReportPage(1); }
     if (path === "/reports/cash-flow") { setReportMode("cashflow"); setReportPage(1); }
@@ -2095,6 +2096,24 @@ function App() {
     printDocument(`Tenant statement · ${tenant.full_name || tenant.company_name || "Tenant"}`, `<h1 class="doc-title">TENANT STATEMENT</h1>${meta}${tableHTML(headers, rows)}`);
   };
 
+  const printReceipt = (payment: PaymentRecord) => {
+    const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id));
+    const unit = units.find((item) => String(item.id) === String(payment.unit_id));
+    const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id));
+    const rows: [string, string][] = [
+      ["Receipt No", escapeCell(payment.receipt_number || payment.payment_reference || "-")],
+      ["Date", escapeCell(dateOnly(payment.payment_date))],
+      ["Received from", escapeCell(tenant?.full_name || tenant?.company_name || "-")],
+      ["Room", escapeCell(unit?.number || "-")],
+      ["Invoice", escapeCell(invoice?.number || "-")],
+      ["Payment method", escapeCell(payment.payment_method || "-")],
+      ["Reference", escapeCell(payment.payment_reference || "-")],
+      ["Amount received", `<strong>${escapeHTML(formatAmount(payment.amount))}</strong>`],
+    ];
+    const body = `<h1 class="doc-title">PAYMENT RECEIPT</h1><table>${rows.map(([label, value]) => `<tr><th style="width:220px">${escapeHTML(label)}</th><td>${value}</td></tr>`).join("")}</table>`;
+    printDocument(`Receipt · ${payment.receipt_number || payment.payment_reference || payment.id}`, body);
+  };
+
   const branchCards = buildings.map((building) => {
     const branchContracts = contracts.filter(
       (contract) => String(contract.building_id) === String(building.id),
@@ -3106,25 +3125,15 @@ function App() {
             </div>
             {reportMode === "tenants" && (
               <div className="panel list-panel report-panel">
-                <div className="section-heading"><h2>{selectedBuildingID === "hq" ? "All tenants by building" : "Tenant statement"}</h2><span>{filteredReportTenants.length} {filteredReportTenants.length === 1 ? "entry" : "entries"}</span></div>
                 <div className="report-controls">
-                  <select value={reportTenantID} onChange={(event) => { setReportTenantID(event.target.value); setReportPage(1); }}>
+                  <select value={reportTenantID} onChange={(event) => { const id = event.target.value; setReportPage(1); if (id) { goTo(`/reports/tenant-statement/${id}`); } else { goTo("/reports/tenants"); } }}>
                     <option value="">All tenants</option>
                     {tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</option>)}
                   </select>
                 </div>
-                <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Phone</th>{selectedBuildingID === "hq" && <th>Building</th>}<th>Rooms</th><th>Active contracts</th><th>Total rent</th></tr></thead><tbody>
-                  {filteredReportTenants.length === 0 ? <tr><td colSpan={selectedBuildingID === "hq" ? 7 : 6}>No tenants found.</td></tr> : reportSlice(filteredReportTenants).map((tenant, index) => {
-                    const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
-                    const tenantUnits = tenantContracts.map((contract) => units.find((unit) => String(unit.id) === String(contract.unit_id))?.number).filter(Boolean);
-                    const building = buildings.find((item) => String(item.id) === String(tenant.building_id));
-                    return <tr key={tenant.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</td><td>{tenant.phone || "-"}</td>{selectedBuildingID === "hq" && <td>{building?.name || "-"}</td>}<td>{tenantUnits.length ? tenantUnits.join(", ") : "-"}</td><td>{tenantContracts.length}</td><td>{formatAmount(tenantContracts.reduce((total, contract) => total + contract.monthly_rent, 0))}</td></tr>;
-                  })}
-                </tbody></table></div>
-                <div className="pagination"><span>Showing {reportSlice(filteredReportTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportTenants.length)} of {filteredReportTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
-                {reportTenantID && selectedBuildingID !== "hq" && (() => {
+                {selectedBuildingID !== "hq" && reportTenantID ? (() => {
                   const tenant = tenants.find((item) => String(item.id) === reportTenantID);
-                  if (!tenant) return null;
+                  if (!tenant) return <p className="report-empty">Tenant not found.</p>;
                   const tenantInvoices = invoices.filter((invoice) => String(invoice.tenant_id) === reportTenantID);
                   const tenantPayments = payments.filter((payment) => String(payment.tenant_id) === reportTenantID);
                   const invoicedTotal = tenantInvoices.reduce((total, invoice) => total + invoice.amount, 0);
@@ -3138,7 +3147,8 @@ function App() {
                   const ledger = entries.map((entry) => { running += entry.debit - entry.credit; return { ...entry, balance: Math.max(0, running) }; });
                   return (
                     <div className="tenant-statement-detail">
-                      <div className="section-heading"><h2>Statement · {tenant.full_name || tenant.company_name || "Tenant"}</h2><div className="section-actions"><span>Balance {formatAmount(balanceTotal)}</span><button type="button" className="secondary-button" onClick={() => printTenantStatement(tenant)}>Print</button></div></div>
+                      <div className="section-heading"><h2>Tenant statement · {tenant.full_name || tenant.company_name || "Tenant"}</h2><div className="section-actions"><span>Balance {formatAmount(balanceTotal)}</span><button type="button" className="secondary-button" onClick={() => printTenantStatement(tenant)}>Print</button></div></div>
+                      <p className="statement-meta">Tenant ID: <strong>{tenant.id_number || tenant.phone || "-"}</strong> · Mobile: <strong>{tenant.phone || "-"}</strong> · TIN: {tenant.registration_ref || "-"} · NIDA: {tenant.id_number || "-"}</p>
                       <div className="amount-summary">
                         <div className="amount-card"><span>Invoiced</span><strong>{formatAmount(invoicedTotal)}</strong></div>
                         <div className="amount-card"><span>Paid</span><strong>{formatAmount(paidTotal)}</strong></div>
@@ -3151,7 +3161,20 @@ function App() {
                       </tbody></table></div>
                     </div>
                   );
-                })()}
+                })() : (
+                  <>
+                    <div className="section-heading"><h2>{selectedBuildingID === "hq" ? "All tenants by building" : "Tenant statement"}</h2><span>{filteredReportTenants.length} {filteredReportTenants.length === 1 ? "entry" : "entries"}</span></div>
+                    <div className="unit-table-wrap"><table className="unit-table report-table"><thead><tr><th>No.</th><th>Tenant</th><th>Phone</th>{selectedBuildingID === "hq" && <th>Building</th>}<th>Rooms</th><th>Active contracts</th><th>Total rent</th></tr></thead><tbody>
+                      {filteredReportTenants.length === 0 ? <tr><td colSpan={selectedBuildingID === "hq" ? 7 : 6}>No tenants found.</td></tr> : reportSlice(filteredReportTenants).map((tenant, index) => {
+                        const tenantContracts = contracts.filter((contract) => String(contract.tenant_id) === String(tenant.id) && contract.status === "Active");
+                        const tenantUnits = tenantContracts.map((contract) => units.find((unit) => String(unit.id) === String(contract.unit_id))?.number).filter(Boolean);
+                        const building = buildings.find((item) => String(item.id) === String(tenant.building_id));
+                        return <tr key={tenant.id}><td>{(reportPage - 1) * reportPageSize + index + 1}</td><td>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</td><td>{tenant.phone || "-"}</td>{selectedBuildingID === "hq" && <td>{building?.name || "-"}</td>}<td>{tenantUnits.length ? tenantUnits.join(", ") : "-"}</td><td>{tenantContracts.length}</td><td>{formatAmount(tenantContracts.reduce((total, contract) => total + contract.monthly_rent, 0))}</td></tr>;
+                      })}
+                    </tbody></table></div>
+                    <div className="pagination"><span>Showing {reportSlice(filteredReportTenants).length ? (reportPage - 1) * reportPageSize + 1 : 0} to {Math.min(reportPage * reportPageSize, filteredReportTenants.length)} of {filteredReportTenants.length}</span><div><button type="button" disabled={reportPage === 1} onClick={() => setReportPage((page) => page - 1)}>Previous</button><strong>{reportPage}</strong><button type="button" disabled={reportPage >= reportPageCount(filteredReportTenants)} onClick={() => setReportPage((page) => page + 1)}>Next</button></div></div>
+                  </>
+                )}
               </div>
             )}
             {reportMode === "transactions" && (
@@ -4429,9 +4452,9 @@ function App() {
                 <select value={paymentInvoiceFilter} onChange={(event) => { setPaymentInvoiceFilter(event.target.value); setPaymentPage(1); }}><option value="All">All invoices</option>{invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number}</option>)}</select>
                 <select value={paymentPageSize} onChange={(event) => { setPaymentPageSize(Number(event.target.value)); setPaymentPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
               </div>
-              <div className="unit-table-wrap"><table className="unit-table payment-table"><thead><tr><th>No.</th><th>Date</th><th>Customer</th><th>Room</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Receipt</th><th>Amount</th></tr></thead><tbody>
-                {visiblePayments.length === 0 ? <tr><td colSpan={9}>No payments match these filters.</td></tr> : visiblePayments.map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(paymentPage - 1) * paymentPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "Unknown customer"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{payment.receipt_number || "-"}</td><td><strong>{formatAmount(payment.amount)}</strong></td></tr>; })}
-              </tbody><tfoot><tr><td colSpan={8}>Filtered total</td><td>{formatAmount(filteredPaymentTotal)}</td></tr></tfoot></table></div>
+              <div className="unit-table-wrap"><table className="unit-table payment-table"><thead><tr><th>No.</th><th>Date</th><th>Customer</th><th>Room</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Receipt</th><th>Amount</th><th>Action</th></tr></thead><tbody>
+                {visiblePayments.length === 0 ? <tr><td colSpan={10}>No payments match these filters.</td></tr> : visiblePayments.map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(paymentPage - 1) * paymentPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "Unknown customer"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{payment.receipt_number || "-"}</td><td><strong>{formatAmount(payment.amount)}</strong></td><td><button type="button" className="table-link" onClick={() => printReceipt(payment)}>Receipt</button></td></tr>; })}
+              </tbody><tfoot><tr><td colSpan={9}>Filtered total</td><td>{formatAmount(filteredPaymentTotal)}</td></tr></tfoot></table></div>
               <div className="pagination"><span>Showing {visiblePayments.length ? (paymentPage - 1) * paymentPageSize + 1 : 0} to {Math.min(paymentPage * paymentPageSize, filteredPayments.length)} of {filteredPayments.length}</span><div><button type="button" disabled={paymentPage === 1} onClick={() => setPaymentPage((page) => page - 1)}>Previous</button><strong>{paymentPage}</strong><button type="button" disabled={paymentPage >= paymentPageCount} onClick={() => setPaymentPage((page) => page + 1)}>Next</button></div></div>
             </div>}
           </div>
