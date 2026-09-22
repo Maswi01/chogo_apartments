@@ -315,7 +315,7 @@ function App() {
   const [unitPage, setUnitPage] = useState(1);
   const [unitPageSize, setUnitPageSize] = useState(10);
   const [unitPageMode, setUnitPageMode] = useState<"list" | "create" | "rent">(() =>
-    window.location.pathname === "/units/new" ? "create" : window.location.pathname.includes("/rent") ? "rent" : "list",
+    window.location.pathname === "/rooms/new" || window.location.pathname.startsWith("/rooms/edit/") ? "create" : window.location.pathname.includes("/rent") ? "rent" : "list",
   );
   const [tenantPageMode, setTenantPageMode] = useState<"list" | "create" | "edit" | "invoice">(() =>
     window.location.pathname === "/tenants/new" ? "create" : window.location.pathname === "/tenants/edit" ? "edit" : window.location.pathname.includes("/invoice") ? "invoice" : "list",
@@ -390,8 +390,8 @@ function App() {
 
   const goTo = (path: string) => {
     window.history.pushState({}, "", path);
-    if (path === "/units/new") setUnitPageMode("create");
-    if (path === "/units") setUnitPageMode("list");
+    if (path === "/rooms/new" || path.startsWith("/rooms/edit/")) setUnitPageMode("create");
+    if (path === "/rooms") setUnitPageMode("list");
     if (path.includes("/rent")) setUnitPageMode("rent");
     if (path === "/tenants/new") setTenantPageMode("create");
     if (path === "/tenants") setTenantPageMode("list");
@@ -560,7 +560,7 @@ function App() {
   }, [selectedBuildingID, session]);
 
   useEffect(() => {
-    const match = window.location.pathname.match(/^\/units\/(\d+)\/rent$/);
+    const match = window.location.pathname.match(/^\/rooms\/(\d+)\/rent$/);
     if (!match || units.length === 0) return;
     const unit = units.find((item) => String(item.id) === match[1]);
     if (unit) {
@@ -714,13 +714,13 @@ function App() {
   const editUnit = (unit: UnitRecord) => {
     setEditingUnitID(unit.id);
     setUnitRows([{ number: unit.number, floor_id: unit.floor_id ?? "", type: unit.type, description: "", status: unit.status, base_rent: formatAmount(unit.base_rent) }]);
-    goTo(`/units/edit/${unit.id}`);
+    goTo(`/rooms/edit/${unit.id}`);
   };
 
   const rentUnit = (unit: UnitRecord) => {
     setRentUnitID(unit.id);
     setContractForm((current) => ({ ...current, unit_id: unit.id, contract_type: unit.type, monthly_rent: formatAmount(unit.base_rent), start_date: new Date().toISOString().slice(0, 10), period: "1", prepaid_amount: "0" }));
-    goTo(`/units/${unit.id}/rent`);
+    goTo(`/rooms/${unit.id}/rent`);
   };
 
   const deleteUnit = async (unit: UnitRecord) => {
@@ -763,7 +763,7 @@ function App() {
       setUnits(data.data ?? []);
       setEditingUnitID(null);
       setUnitRows([{ ...defaultUnitForm }]);
-      goTo("/units");
+      goTo("/rooms");
       void showSuccess("Room updated");
       return;
     }
@@ -789,7 +789,7 @@ function App() {
     const data = await payload.json();
     setUnits(data.data ?? []);
     setUnitRows([{ ...defaultUnitForm }]);
-    goTo("/units");
+    goTo("/rooms");
     void showSuccess("Room saved");
   };
 
@@ -1027,7 +1027,7 @@ function App() {
       setContractForm(defaultContractForm);
       if (rentUnitID) {
         setRentUnitID(null)
-        goTo('/units')
+        goTo('/rooms')
       } else {
         goTo("/contracts");
       }
@@ -1803,7 +1803,7 @@ function App() {
     if (nextView === "units") {
       resetUnitList();
       setRentUnitID(null);
-      goTo("/units");
+      goTo("/rooms");
     }
     if (nextView === "tenants") {
       resetTenantList();
@@ -3442,7 +3442,7 @@ function App() {
               <button
                 className="secondary-button units-add-button"
                 type="button"
-                onClick={() => goTo("/units/new")}
+                onClick={() => goTo("/rooms/new")}
               >
                 + Add room(s)
               </button>
@@ -3456,7 +3456,7 @@ function App() {
                     <button
                       className="secondary-button"
                       type="button"
-                      onClick={() => { setEditingUnitID(null); goTo("/units"); }}
+                      onClick={() => { setEditingUnitID(null); goTo("/rooms"); }}
                     >
                       Back to list
                     </button>
@@ -3553,7 +3553,7 @@ function App() {
               <form className="panel form-panel rent-panel" onSubmit={handleContractSubmit}>
                 <div className="section-heading">
                   <h2>Rent room</h2>
-                  <button className="secondary-button" type="button" onClick={() => { setRentUnitID(null); goTo("/units"); }}>Back to list</button>
+                  <button className="secondary-button" type="button" onClick={() => { setRentUnitID(null); goTo("/rooms"); }}>Back to list</button>
                 </div>
                 <p className="empty-state">{selectedBuilding?.name} · Room {units.find((unit) => unit.id === rentUnitID)?.number}</p>
                 <label>Tenant<select name="tenant_id" value={contractForm.tenant_id} onChange={handleContractChange} required><option value="">Select tenant</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}</select></label>
