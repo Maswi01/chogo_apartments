@@ -30,6 +30,8 @@ const amountNumber = (value: string) => Number(value.replace(/,/g, "")) || 0;
 
 const dateOnly = (value: string) => value ? value.slice(0, 10) : "";
 
+const localISODate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 const contractMonths = (start: string, end: string) => {
   const startDate = new Date(`${dateOnly(start)}T00:00:00`);
   const endDate = new Date(`${dateOnly(end)}T00:00:00`);
@@ -97,6 +99,7 @@ const defaultContractForm = {
   monthly_rent: "0",
   period: "1",
   prepaid_amount: "0",
+  payment_date: new Date().toISOString().slice(0, 10),
   payment_method: "Bank Transfer",
   payment_frequency: "Monthly",
   utility_responsibility: "Tenant pays electricity and water",
@@ -719,7 +722,7 @@ function App() {
 
   const rentUnit = (unit: UnitRecord) => {
     setRentUnitID(unit.id);
-    setContractForm((current) => ({ ...current, unit_id: unit.id, contract_type: unit.type, monthly_rent: formatAmount(unit.base_rent), start_date: new Date().toISOString().slice(0, 10), period: "1", prepaid_amount: "0" }));
+    setContractForm((current) => ({ ...current, unit_id: unit.id, contract_type: unit.type, monthly_rent: formatAmount(unit.base_rent), start_date: new Date().toISOString().slice(0, 10), period: "1", prepaid_amount: "0", payment_date: new Date().toISOString().slice(0, 10) }));
     goTo(`/rooms/${unit.id}/rent`);
   };
 
@@ -806,7 +809,7 @@ function App() {
 
   const rentStartDate = contractForm.start_date ? new Date(`${contractForm.start_date}T00:00:00`) : null;
   const rentPeriod = Math.max(1, Number(contractForm.period) || 1);
-  const calculatedEndDate = rentStartDate ? new Date(rentStartDate.getFullYear(), rentStartDate.getMonth() + rentPeriod, rentStartDate.getDate()).toISOString().slice(0, 10) : "";
+  const calculatedEndDate = rentStartDate ? localISODate(new Date(rentStartDate.getFullYear(), rentStartDate.getMonth() + rentPeriod, rentStartDate.getDate())) : "";
   const totalRent = amountNumber(contractForm.monthly_rent) * rentPeriod;
   const prepaidAmount = amountNumber(contractForm.prepaid_amount);
   const balanceAmount = Math.max(0, totalRent - prepaidAmount);
@@ -917,6 +920,8 @@ function App() {
   ) => {
     const invoiceResponse = await apiFetch(`/contracts/${contract.id}/invoices`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ issue_date: paymentDate }),
     });
     if (!invoiceResponse.ok) {
       await showRequestError(invoiceResponse, "Contract saved, but its invoice could not be generated.");
@@ -949,11 +954,11 @@ function App() {
     if (!selectedUnit || !proformaTenantID) return;
     const period = Math.max(1, Number(proformaForm.period) || 1);
     const startDate = new Date(`${proformaForm.start_date}T00:00:00`);
-    const endDate = new Date(
+    const endDate = localISODate(new Date(
       startDate.getFullYear(),
       startDate.getMonth() + period,
       startDate.getDate(),
-    ).toISOString().slice(0, 10);
+    ));
     const contractResponse = await apiFetch("/contracts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1020,7 +1025,7 @@ function App() {
         contract,
         amountNumber(contractForm.prepaid_amount),
         contractForm.payment_method,
-        contractForm.start_date || new Date().toISOString().slice(0, 10),
+        contractForm.payment_date || contractForm.start_date || new Date().toISOString().slice(0, 10),
       );
       if (!completed) return;
       await loadData();
@@ -1111,7 +1116,7 @@ function App() {
     if (!contract) return;
     const period = Math.max(1, Number(contractUpgradeForm.period) || 1);
     const currentEndDate = new Date(`${dateOnly(contract.end_date)}T00:00:00`);
-    const endDate = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth() + period, currentEndDate.getDate()).toISOString().slice(0, 10);
+    const endDate = localISODate(new Date(currentEndDate.getFullYear(), currentEndDate.getMonth() + period, currentEndDate.getDate()));
     const response = await apiFetch(`/contracts/${contract.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -1209,7 +1214,7 @@ function App() {
     const paid = invoicePaidAmount(invoice.id);
     const balance = Math.max(0, invoice.amount - paid);
     const tenantName = tenant?.full_name || tenant?.company_name || "Unknown tenant";
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(invoice.number)}</title><style>body{max-width:850px;margin:48px auto;font:15px Arial,sans-serif;color:#17231f}h1{margin-bottom:4px}p{color:#69756e}table{width:100%;margin-top:28px;border-collapse:collapse}th,td{padding:12px;border:1px solid #dfe5dd;text-align:left}.totals{margin:26px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #dfe5dd}@media print{body{margin:20px}.print-toolbar{display:none}}.print-toolbar{display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px}.print-toolbar button{border:none;border-radius:6px;padding:10px 22px;background:#133d32;color:#fff;font-weight:700;font-size:13px;cursor:pointer}</style></head><body><div class="print-toolbar"><button onclick="window.print()">Print</button></div><img src="${window.location.origin}${docHeader}" alt="Mwita Family Apartments" style="display:block;width:100%;max-height:150px;object-fit:contain;margin-bottom:14px"><h1>Invoice ${escapeHTML(invoice.number)}</h1><p>${escapeHTML(tenantName)} · Room ${escapeHTML(unit?.number || "-")}</p><table><tr><th>Period</th><th>Monthly price</th><th>Issue date</th><th>Status</th></tr><tr><td>${escapeHTML(dateOnly(contract?.start_date || invoice.issue_date))} to ${escapeHTML(dateOnly(contract?.end_date || invoice.due_date))}</td><td>${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}</td><td>${escapeHTML(dateOnly(invoice.issue_date))}</td><td>${escapeHTML(balance === 0 ? "Paid" : paid > 0 ? "Partially Paid" : invoice.status)}</td></tr></table><div class="totals"><div><span>Total</span><strong>${escapeHTML(formatAmount(invoice.amount))}</strong></div><div><span>Paid</span><strong>${escapeHTML(formatAmount(paid))}</strong></div><div><span>Balance</span><strong>${escapeHTML(formatAmount(balance))}</strong></div></div></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(invoice.number)}</title><style>body{max-width:850px;margin:48px auto;font:15px Arial,sans-serif;color:#17231f}h1{margin-bottom:4px}p{color:#69756e}table{width:100%;margin-top:28px;border-collapse:collapse}th,td{padding:12px;border:1px solid #dfe5dd;text-align:left}.totals{margin:26px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #dfe5dd}@media print{body{margin:20px}.print-toolbar{display:none}}.print-toolbar{display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px}.print-toolbar button{border:none;border-radius:6px;padding:10px 22px;background:#133d32;color:#fff;font-weight:700;font-size:13px;cursor:pointer}</style></head><body><div class="print-toolbar"><button onclick="window.print()">Print</button></div><img src="${window.location.origin}${docHeader}" alt="Mwita Family Apartments" style="display:block;width:100%;max-height:150px;object-fit:contain;margin-bottom:14px"><h1>Invoice ${escapeHTML(invoice.number)}</h1><p>${escapeHTML(tenantName)} · Room ${escapeHTML(unit?.number || "-")}</p><table><tr><th>Period</th><th>Months</th><th>Monthly price</th><th>Issue date</th><th>Status</th></tr><tr><td>${escapeHTML(dateOnly(contract?.start_date || invoice.issue_date))} to ${escapeHTML(dateOnly(contract?.end_date || invoice.due_date))}</td><td>${contract ? contractMonths(contract.start_date, contract.end_date) : 1}</td><td>${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}</td><td>${escapeHTML(dateOnly(invoice.issue_date))}</td><td>${escapeHTML(balance === 0 ? "Paid" : paid > 0 ? "Partially Paid" : invoice.status)}</td></tr></table><div class="totals"><div><span>Total</span><strong>${escapeHTML(formatAmount(invoice.amount))}</strong></div><div><span>Paid</span><strong>${escapeHTML(formatAmount(paid))}</strong></div><div><span>Balance</span><strong>${escapeHTML(formatAmount(balance))}</strong></div></div></body></html>`;
     const invoiceURL = URL.createObjectURL(new Blob([html], { type: "text/html" }));
     window.open(invoiceURL, "_blank", "noopener,noreferrer");
   };
@@ -1998,12 +2003,6 @@ function App() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
   const reportScopeLabel = selectedBuildingID === "hq" ? "All buildings" : selectedBuilding?.name || "Building";
-  const monthsBetween = (start: string, end: string) => {
-    const from = new Date(start);
-    const to = new Date(end);
-    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 0;
-    return Math.max(0, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()));
-  };
 
   const handleReportPrint = () => {
     if (reportMode === "tenants") {
@@ -2077,7 +2076,7 @@ function App() {
         const contract = contracts.find((item) => String(item.id) === String(invoice.contract_id));
         const unit = units.find((item) => String(item.id) === String(invoice.unit_id));
         const building = buildings.find((item) => String(item.id) === String(invoice.building_id));
-        const months = contract ? monthsBetween(contract.start_date, contract.end_date) : 0;
+        const months = contract ? contractMonths(contract.start_date, contract.end_date) : 0;
         const agreement = `<strong>${escapeHTML(invoice.number)}</strong><div class="doc-subtle">Room: ${escapeHTML(unit?.number || "-")}<br>Period: ${months} month(s)<br>Price/Month: ${escapeHTML(formatAmount(contract?.monthly_rent || invoice.amount))}<br>Building: ${escapeHTML(building?.name || "-")}</div>`;
         return { date: invoice.issue_date, agreement, receipt: "-", particular: "INVOICE", credit: 0, debit: invoice.amount };
       }),
@@ -3561,7 +3560,8 @@ function App() {
                 <div className="inline-fields"><label>End date<input type="date" value={calculatedEndDate} readOnly /></label><label>Required monthly rent<input inputMode="decimal" value={contractForm.monthly_rent} readOnly /></label></div>
                 <div className="inline-fields"><label>Prepaid amount<input inputMode="decimal" name="prepaid_amount" value={contractForm.prepaid_amount} onChange={(event) => setContractForm((current) => ({ ...current, prepaid_amount: formatAmount(event.target.value) }))} /><small className="field-help">Amount paid now. Enter 0 when no payment is received.</small></label><label>Total amount<input value={formatAmount(totalRent)} readOnly /></label></div>
                 <label>Balance<input value={formatAmount(balanceAmount)} readOnly /></label>
-                <div className="inline-fields"><label>Payment method<select name="payment_method" value={contractForm.payment_method} onChange={handleContractChange}><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Cheque</option></select></label><label>Payment frequency<select name="payment_frequency" value={contractForm.payment_frequency} onChange={handleContractChange}><option>Monthly</option><option>Every 3 months</option><option>Every 6 months</option><option>Yearly</option></select></label></div>
+                <div className="inline-fields"><label>Payment date<input type="date" name="payment_date" value={contractForm.payment_date} onChange={handleContractChange} required /></label><label>Payment method<select name="payment_method" value={contractForm.payment_method} onChange={handleContractChange}><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Cheque</option></select></label></div>
+                <label>Payment frequency<select name="payment_frequency" value={contractForm.payment_frequency} onChange={handleContractChange}><option>Monthly</option><option>Every 3 months</option><option>Every 6 months</option><option>Yearly</option></select></label>
                 <label>Notes<textarea name="notes" value={contractForm.notes} onChange={handleContractChange} placeholder="Lease notes" /></label>
                 <button className="primary-button" type="submit">Create contract</button>
               </form>
@@ -3773,7 +3773,7 @@ function App() {
                 </label>
                 <label>
                   Ending date
-                  <input value={(() => { const start = new Date(`${proformaForm.start_date}T00:00:00`); const period = Math.max(1, Number(proformaForm.period) || 1); return proformaForm.start_date ? new Date(start.getFullYear(), start.getMonth() + period, start.getDate()).toISOString().slice(0, 10) : ""; })()} readOnly />
+                  <input value={(() => { const start = new Date(`${proformaForm.start_date}T00:00:00`); const period = Math.max(1, Number(proformaForm.period) || 1); return proformaForm.start_date ? localISODate(new Date(start.getFullYear(), start.getMonth() + period, start.getDate())) : ""; })()} readOnly />
                 </label>
                 <label>
                   Total amount
@@ -3789,7 +3789,7 @@ function App() {
                   <input value={formatAmount(Math.max(0, (units.find((unit) => String(unit.id) === proformaForm.unit_id)?.base_rent ?? 0) * (Number(proformaForm.period) || 1) - amountNumber(proformaForm.prepaid_amount)))} readOnly />
                 </label>
                 <label>
-                  Date
+                  Payment date
                   <input type="date" name="issue_date" value={proformaForm.issue_date} onChange={handleProformaChange} required />
                 </label>
                 <button className="primary-button" type="submit">Generate invoice</button>
@@ -4046,7 +4046,7 @@ function App() {
                 const tenant = tenants.find((item) => String(item.id) === String(contract?.tenant_id));
                 const period = Number(contractUpgradeForm.period) || 0;
                 const currentEndDate = contract?.end_date ? new Date(`${dateOnly(contract.end_date)}T00:00:00`) : null;
-                const endDate = currentEndDate && period ? new Date(currentEndDate.getFullYear(), currentEndDate.getMonth() + period, currentEndDate.getDate()).toISOString().slice(0, 10) : "";
+                const endDate = currentEndDate && period ? localISODate(new Date(currentEndDate.getFullYear(), currentEndDate.getMonth() + period, currentEndDate.getDate())) : "";
                 const addedAmount = (contract?.monthly_rent ?? 0) * period;
                 return (
                   <form className="panel form-panel contract-upgrade-panel" onSubmit={handleContractUpgradeSubmit}>
@@ -4201,6 +4201,12 @@ function App() {
                       onChange={(event) => setContractForm((current) => ({ ...current, prepaid_amount: formatAmount(event.target.value) }))}
                     />
                     <small className="field-help">Amount received now. Enter 0 when there is no prepayment.</small>
+                  </label>
+                )}
+                {contractPageMode === "create" && (
+                  <label>
+                    Payment date
+                    <input type="date" name="payment_date" value={contractForm.payment_date} onChange={handleContractChange} required />
                   </label>
                 )}
                 <div className="inline-fields">

@@ -376,6 +376,14 @@ func (h *Handler) previewContract(writer http.ResponseWriter, request *http.Requ
 	}
 }
 
+// DATE columns may be returned as RFC3339 timestamps; keep only YYYY-MM-DD.
+func dateOnly(value string) string {
+	if len(value) > 10 {
+		return value[:10]
+	}
+	return value
+}
+
 func (h *Handler) generateInvoice(writer http.ResponseWriter, request *http.Request) {
 	contractID, ok := pathID(request)
 	if !ok {
@@ -393,15 +401,24 @@ func (h *Handler) generateInvoice(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 	now := time.Now()
+	var body struct {
+		IssueDate string `json:"issue_date"`
+	}
+	_ = json.NewDecoder(request.Body).Decode(&body)
+	if issued, err := time.Parse("2006-01-02", body.IssueDate); err == nil {
+		now = issued
+	}
+	months := 1
 	invoiceAmount := contract.MonthlyRent
-	startDate, startErr := time.Parse("2006-01-02", contract.StartDate)
-	endDate, endErr := time.Parse("2006-01-02", contract.EndDate)
+	startDate, startErr := time.Parse("2006-01-02", dateOnly(contract.StartDate))
+	endDate, endErr := time.Parse("2006-01-02", dateOnly(contract.EndDate))
 	if startErr == nil && endErr == nil && endDate.After(startDate) {
-		months := (endDate.Year()-startDate.Year())*12 + int(endDate.Month()-startDate.Month())
+		calculated := (endDate.Year()-startDate.Year())*12 + int(endDate.Month()-startDate.Month())
 		if endDate.Day() > startDate.Day() {
-			months++
+			calculated++
 		}
-		if months > 1 {
+		if calculated > 1 {
+			months = calculated
 			invoiceAmount = contract.MonthlyRent * float64(months)
 		}
 	}
@@ -414,7 +431,7 @@ func (h *Handler) generateInvoice(writer http.ResponseWriter, request *http.Requ
 		IssueDate:   now.Format("2006-01-02"),
 		DueDate:     now.AddDate(0, 0, 7).Format("2006-01-02"),
 		Amount:      invoiceAmount,
-		Description: "Rent invoice for unit " + unit.Number,
+		Description: "Rent invoice for unit " + unit.Number + " (" + strconv.Itoa(months) + " month(s))",
 		Status:      "Pending",
 	})
 	if err != nil {
