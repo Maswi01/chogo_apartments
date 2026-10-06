@@ -15,6 +15,9 @@ var (
 	ErrContractNotFound   = errors.New("contract not found")
 	ErrContractHasRecords = errors.New("cannot delete a contract with invoices or signed documents")
 	ErrInvoiceNotFound    = errors.New("invoice not found")
+	ErrPaymentNotFound    = errors.New("payment not found")
+	ErrBuildingHasRecords = errors.New("cannot delete a building that still has rooms, tenants, or expenses")
+	ErrInvoiceHasPayments = errors.New("delete this invoice's payments first")
 )
 
 // Service is a simple in-memory implementation for the initial MVP.
@@ -51,9 +54,13 @@ func (s *Service) CreateBuilding(b Building) (*Building, error) {
 	}
 
 	s.buildings[b.ID] = &b
-	for floorNumber := 1; floorNumber <= b.Floors; floorNumber++ {
+	for floorNumber := 0; floorNumber <= b.Floors; floorNumber++ {
 		floorID := uint64(len(s.floors) + 1)
-		s.floors[floorID] = &Floor{ID: floorID, BuildingID: b.ID, Name: fmt.Sprintf("Floor %d", floorNumber)}
+		floorName := "Ground Floor"
+		if floorNumber > 0 {
+			floorName = fmt.Sprintf("Floor %d", floorNumber)
+		}
+		s.floors[floorID] = &Floor{ID: floorID, BuildingID: b.ID, Name: floorName}
 	}
 	return s.buildings[b.ID], nil
 }
@@ -61,9 +68,81 @@ func (s *Service) CreateBuilding(b Building) (*Building, error) {
 func (s *Service) ListBuildings() []*Building {
 	items := make([]*Building, 0, len(s.buildings))
 	for _, b := range s.buildings {
+		b.UnitCount = len(s.ListUnitsByBuilding(b.ID))
 		items = append(items, b)
 	}
 	return items
+}
+
+func (s *Service) UpdateBuilding(b Building) (*Building, error) {
+	existing, ok := s.buildings[b.ID]
+	if !ok {
+		return nil, ErrBuildingNotFound
+	}
+	if b.Name == "" || b.Code == "" || b.Address == "" {
+		return nil, errors.New("building name, code, and address are required")
+	}
+	existing.Name, existing.Code, existing.Address = b.Name, b.Code, b.Address
+	existing.Description, existing.Status, existing.UpdatedAt = b.Description, b.Status, time.Now()
+	return existing, nil
+}
+
+func (s *Service) DeleteBuilding(id uint64) error {
+	if _, ok := s.buildings[id]; !ok {
+		return ErrBuildingNotFound
+	}
+	if len(s.ListUnitsByBuilding(id)) > 0 {
+		return ErrBuildingHasRecords
+	}
+	for floorID, floor := range s.floors {
+		if floor.BuildingID == id {
+			delete(s.floors, floorID)
+		}
+	}
+	delete(s.buildings, id)
+	return nil
+}
+
+func (s *Service) DeleteInvoice(id uint64) error {
+	if _, ok := s.invoices[id]; !ok {
+		return ErrInvoiceNotFound
+	}
+	for _, payment := range s.payments {
+		if payment.InvoiceID == id {
+			return ErrInvoiceHasPayments
+		}
+	}
+	delete(s.invoices, id)
+	return nil
+}
+
+func (s *Service) DeletePayment(id uint64) error {
+	payment, ok := s.payments[id]
+	if !ok {
+		return ErrPaymentNotFound
+	}
+	delete(s.payments, id)
+	if invoice, ok := s.invoices[payment.InvoiceID]; ok {
+		paid := 0.0
+		for _, existing := range s.payments {
+			if existing.InvoiceID == invoice.ID {
+				paid += existing.Amount
+			}
+		}
+		invoice.Status = invoiceStatusFor(paid, invoice.Amount)
+	}
+	return nil
+}
+
+func invoiceStatusFor(paid, total float64) string {
+	switch {
+	case paid <= 0:
+		return "Pending"
+	case paid >= total:
+		return "Paid"
+	default:
+		return "Partially Paid"
+	}
 }
 
 func (s *Service) GetBuilding(id uint64) (*Building, error) {

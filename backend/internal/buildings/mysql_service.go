@@ -33,6 +33,11 @@ func NewMySQLService(db *sql.DB) *MySQLService {
 	)`); err != nil {
 		log.Printf("ensure expenses table: %v", err)
 	}
+	if _, err := db.Exec(`INSERT INTO floors (building_id, name, description, created_at, updated_at)
+		SELECT b.id, 'Ground Floor', '', NOW(), NOW() FROM buildings b
+		WHERE NOT EXISTS (SELECT 1 FROM floors f WHERE f.building_id = b.id AND f.name = 'Ground Floor')`); err != nil {
+		log.Printf("backfill ground floors: %v", err)
+	}
 	return &MySQLService{db: db}
 }
 
@@ -56,8 +61,12 @@ func (s *MySQLService) CreateBuilding(building Building) (*Building, error) {
 		_ = tx.Rollback()
 		return nil, fmt.Errorf("read building id: %w", err)
 	}
-	for floorNumber := 1; floorNumber <= building.Floors; floorNumber++ {
-		if _, err := tx.Exec(`INSERT INTO floors (building_id, name, description, created_at, updated_at) VALUES (?, ?, '', ?, ?)`, building.ID, fmt.Sprintf("Floor %d", floorNumber), building.CreatedAt, building.UpdatedAt); err != nil {
+	for floorNumber := 0; floorNumber <= building.Floors; floorNumber++ {
+		floorName := "Ground Floor"
+		if floorNumber > 0 {
+			floorName = fmt.Sprintf("Floor %d", floorNumber)
+		}
+		if _, err := tx.Exec(`INSERT INTO floors (building_id, name, description, created_at, updated_at) VALUES (?, ?, '', ?, ?)`, building.ID, floorName, building.CreatedAt, building.UpdatedAt); err != nil {
 			_ = tx.Rollback()
 			return nil, fmt.Errorf("create floor %d: %w", floorNumber, err)
 		}
@@ -77,7 +86,7 @@ func databaseID(result sql.Result) (uint64, error) {
 }
 
 func (s *MySQLService) ListBuildings() []*Building {
-	rows, err := s.db.Query(`SELECT id, name, code, address, COALESCE(description, ''), number_of_floors, status, created_at, updated_at FROM buildings ORDER BY created_at DESC`)
+	rows, err := s.db.Query(`SELECT b.id, b.name, b.code, b.address, COALESCE(b.description, ''), b.number_of_floors, (SELECT COUNT(*) FROM units u WHERE u.building_id = b.id), b.status, b.created_at, b.updated_at FROM buildings b ORDER BY b.created_at DESC`)
 	if err != nil {
 		return []*Building{}
 	}
@@ -85,7 +94,7 @@ func (s *MySQLService) ListBuildings() []*Building {
 	items := make([]*Building, 0)
 	for rows.Next() {
 		item := &Building{}
-		if rows.Scan(&item.ID, &item.Name, &item.Code, &item.Address, &item.Description, &item.Floors, &item.Status, &item.CreatedAt, &item.UpdatedAt) == nil {
+		if rows.Scan(&item.ID, &item.Name, &item.Code, &item.Address, &item.Description, &item.Floors, &item.UnitCount, &item.Status, &item.CreatedAt, &item.UpdatedAt) == nil {
 			items = append(items, item)
 		}
 	}
@@ -116,7 +125,7 @@ func (s *MySQLService) ListFloorsByBuilding(buildingID uint64) []*Floor {
 		query += ` WHERE building_id = ?`
 		args = append(args, buildingID)
 	}
-	query += ` ORDER BY created_at`
+	query += ` ORDER BY building_id, name <> 'Ground Floor', id`
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return []*Floor{}
@@ -540,6 +549,86 @@ func (s *MySQLService) ListPayments(buildingID uint64) []*Payment {
 		}
 	}
 	return items
+}
+
+func (s *MySQLService) UpdateBuilding(building Building) (*Building, error) {
+	if building.ID == 0 || building.Name == "" || building.Code == "" || building.Address == "" {
+		return nil, errors.New("building name, code, and address are required")
+	}
+	if _, err := s.db.Exec(`UPDATE buildings SET name = ?, code = ?, address = ?, description = ?, status = ?, updated_at = ? WHERE id = ?`, building.Name, building.Code, building.Address, building.Description, building.Status, time.Now(), building.ID); err != nil {
+		return nil, fmt.Errorf("update building: %w", err)
+	}
+	for _, item := range s.ListBuildings() {
+		if item.ID == building.ID {
+			return item, nil
+		}
+	}
+	return nil, ErrBuildingNotFound
+}
+
+func (s *MySQLService) DeleteBuilding(id uint64) error {
+	for _, table := range []string{"units", "tenants", "expenses"} {
+		var count int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM `+table+` WHERE building_id = ?`, id).Scan(&count); err != nil {
+			return fmt.Errorf("check building %s: %w", table, err)
+		}
+		if count > 0 {
+			return ErrBuildingHasRecords
+		}
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin delete building: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM floors WHERE building_id = ?`, id); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("delete building floors: %w", err)
+	}
+	result, err := tx.Exec(`DELETE FROM buildings WHERE id = ?`, id)
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("delete building: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count == 0 {
+		_ = tx.Rollback()
+		return ErrBuildingNotFound
+	}
+	return tx.Commit()
+}
+
+func (s *MySQLService) DeleteInvoice(id uint64) error {
+	var paymentCount int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM payments WHERE invoice_id = ?`, id).Scan(&paymentCount); err != nil {
+		return fmt.Errorf("check invoice payments: %w", err)
+	}
+	if paymentCount > 0 {
+		return ErrInvoiceHasPayments
+	}
+	result, err := s.db.Exec(`DELETE FROM invoices WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete invoice: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count == 0 {
+		return ErrInvoiceNotFound
+	}
+	return nil
+}
+
+func (s *MySQLService) DeletePayment(id uint64) error {
+	var invoiceID uint64
+	if err := s.db.QueryRow(`SELECT invoice_id FROM payments WHERE id = ?`, id).Scan(&invoiceID); errors.Is(err, sql.ErrNoRows) {
+		return ErrPaymentNotFound
+	} else if err != nil {
+		return fmt.Errorf("load payment: %w", err)
+	}
+	if _, err := s.db.Exec(`DELETE FROM payments WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete payment: %w", err)
+	}
+	var total, paid float64
+	if err := s.db.QueryRow(`SELECT i.amount, COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.invoice_id = i.id), 0) FROM invoices i WHERE i.id = ?`, invoiceID).Scan(&total, &paid); err == nil {
+		_, _ = s.db.Exec(`UPDATE invoices SET status = ? WHERE id = ?`, invoiceStatusFor(paid, total), invoiceID)
+	}
+	return nil
 }
 
 func (s *MySQLService) DashboardSummary(buildingID uint64) DashboardSummary {

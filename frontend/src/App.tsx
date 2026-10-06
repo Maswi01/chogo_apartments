@@ -139,6 +139,7 @@ type BuildingRecord = {
   address: string;
   description?: string;
   floors: number;
+  unit_count?: number;
   status: string;
 };
 
@@ -304,6 +305,7 @@ function App() {
   const [tenantPage, setTenantPage] = useState(1);
   const [tenantPageSize, setTenantPageSize] = useState(10);
   const [editingTenantID, setEditingTenantID] = useState<string | null>(null);
+  const [editingBuildingID, setEditingBuildingID] = useState<string | null>(null);
   const [buildingPageMode, setBuildingPageMode] = useState<"list" | "create">("list");
   const [buildingSearch, setBuildingSearch] = useState("");
   const [buildingStatusFilter, setBuildingStatusFilter] = useState("All");
@@ -412,7 +414,7 @@ function App() {
     if (path === "/expenses") setExpenseEntryMode("list");
     if (path === "/expenses/new") setExpenseEntryMode("create");
     if (path === "/buildings") setBuildingPageMode("list");
-    if (path === "/buildings/new") setBuildingPageMode("create");
+    if (path === "/buildings/new" || path === "/buildings/edit") setBuildingPageMode("create");
     if (path === "/reports/tenants") { setReportMode("tenants"); setReportPage(1); setReportTenantID(""); }
     if (path.startsWith("/reports/tenant-statement/")) { setReportMode("tenants"); setReportPage(1); setReportTenantID(path.split("/").pop() || ""); }
     if (path === "/reports/transactions") { setReportMode("transactions"); setReportPage(1); }
@@ -839,8 +841,8 @@ function App() {
 
     setFormError("");
 
-    const response = await apiFetch("/buildings", {
-      method: "POST",
+    const response = await apiFetch(editingBuildingID ? `/buildings/${editingBuildingID}` : "/buildings", {
+      method: editingBuildingID ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
@@ -851,8 +853,9 @@ function App() {
     if (response.ok) {
       await loadData();
       setForm(defaultForm);
+      setEditingBuildingID(null);
       goTo("/buildings");
-      void showSuccess("Building saved");
+      void showSuccess(editingBuildingID ? "Building updated" : "Building saved");
     } else {
       const error = (await response
         .json()
@@ -908,7 +911,7 @@ function App() {
   ) => {
     setProformaForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [event.target.name]: event.target.name === "prepaid_amount" ? formatAmount(event.target.value) : event.target.value,
     }));
   };
 
@@ -1061,6 +1064,48 @@ function App() {
     });
     goTo(`/contracts/${contract.id}/edit`);
   };
+
+  const editBuilding = (building: BuildingRecord) => {
+    setEditingBuildingID(String(building.id));
+    setFormError("");
+    setForm({
+      name: building.name,
+      code: building.code,
+      address: building.address,
+      description: building.description ?? "",
+      floors: String(building.floors),
+      status: building.status,
+    });
+    goTo("/buildings/edit");
+  };
+
+  const confirmAndDelete = async (path: string, title: string, text: string, done: string, failure: string) => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title,
+      text,
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      confirmButtonColor: "#d9574f",
+    });
+    if (!result.isConfirmed) return;
+    const response = await apiFetch(path, { method: "DELETE" });
+    if (!response.ok) {
+      await showRequestError(response, failure);
+      return;
+    }
+    await loadData();
+    void showSuccess(done);
+  };
+
+  const deleteBuilding = (building: BuildingRecord) =>
+    confirmAndDelete(`/buildings/${building.id}`, `Delete ${building.name}?`, "Its floors will be removed. This cannot be undone.", "Building deleted", "Could not delete building.");
+
+  const deleteInvoice = (invoice: InvoiceRecord) =>
+    confirmAndDelete(`/invoices/${invoice.id}`, `Delete invoice ${invoice.number}?`, "Invoices that have payments cannot be deleted; delete the payments first.", "Invoice deleted", "Could not delete invoice.");
+
+  const deletePayment = (payment: PaymentRecord) =>
+    confirmAndDelete(`/payments/${payment.id}`, "Delete this payment?", "The invoice balance and status will be recalculated.", "Payment deleted", "Could not delete payment.");
 
   const deleteContract = async (contract: ContractRecord) => {
     const result = await Swal.fire({
@@ -1551,7 +1596,7 @@ function App() {
           </div>
           <label>
             Username or email
-            <input
+            <input name="username"
               value={loginForm.username}
               onChange={(event) =>
                 setLoginForm((current) => ({
@@ -1566,7 +1611,7 @@ function App() {
           </label>
           <label>
             Password
-            <input
+            <input name="password"
               type="password"
               value={loginForm.password}
               onChange={(event) =>
@@ -2103,15 +2148,30 @@ function App() {
     const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id));
     const unit = units.find((item) => String(item.id) === String(payment.unit_id));
     const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id));
+    const contract = contracts.find((item) => String(item.id) === String(invoice?.contract_id));
+    const building = buildings.find((item) => String(item.id) === String(payment.building_id));
+    const paidToDate = payments
+      .filter((item) => String(item.invoice_id) === String(payment.invoice_id) && (dateOnly(item.payment_date) < dateOnly(payment.payment_date) || (dateOnly(item.payment_date) === dateOnly(payment.payment_date) && Number(item.id) <= Number(payment.id))))
+      .reduce((sum, item) => sum + item.amount, 0);
+    const invoiceTotal = invoice?.amount ?? payment.amount;
     const rows: [string, string][] = [
       ["Receipt No", escapeCell(payment.receipt_number || payment.payment_reference || "-")],
       ["Date", escapeCell(dateOnly(payment.payment_date))],
       ["Received from", escapeCell(tenant?.full_name || tenant?.company_name || "-")],
+      ["Building", escapeCell(building?.name || "-")],
       ["Room", escapeCell(unit?.number || "-")],
       ["Invoice", escapeCell(invoice?.number || "-")],
+      ...(contract ? ([
+        ["Period", escapeCell(`${dateOnly(contract.start_date)} to ${dateOnly(contract.end_date)}`)],
+        ["Duration", escapeCell(`${contractMonths(contract.start_date, contract.end_date)} month(s)`)],
+        ["Monthly price", escapeCell(formatAmount(contract.monthly_rent))],
+      ] as [string, string][]) : []),
+      ["Invoice total", escapeCell(formatAmount(invoiceTotal))],
       ["Payment method", escapeCell(payment.payment_method || "-")],
       ["Reference", escapeCell(payment.payment_reference || "-")],
       ["Amount received", `<strong>${escapeHTML(formatAmount(payment.amount))}</strong>`],
+      ["Total paid to date", escapeCell(formatAmount(paidToDate))],
+      ["Balance", `<strong>${escapeHTML(formatAmount(Math.max(0, invoiceTotal - paidToDate)))}</strong>`],
     ];
     const body = `<h1 class="doc-title">PAYMENT RECEIPT</h1><table>${rows.map(([label, value]) => `<tr><th style="width:220px">${escapeHTML(label)}</th><td>${value}</td></tr>`).join("")}</table>`;
     printDocument(`Receipt · ${payment.receipt_number || payment.payment_reference || payment.id}`, body);
@@ -2342,7 +2402,7 @@ function App() {
           </div>
           <label className="building-switcher">
             Portfolio context
-            <select
+            <select name="selectedBuildingID" autoComplete="off"
               value={selectedBuildingID}
               onChange={(event) => switchBuilding(event.target.value)}
             >
@@ -2629,7 +2689,7 @@ function App() {
                     </div>
                     <label>
                       Full name
-                      <input
+                      <input name="full_name" autoComplete="name"
                         value={newUserForm.full_name}
                         onChange={(event) =>
                           setNewUserForm((current) => ({
@@ -2642,7 +2702,7 @@ function App() {
                     </label>
                     <label>
                       Username
-                      <input
+                      <input name="username" autoComplete="username"
                         value={newUserForm.username}
                         onChange={(event) =>
                           setNewUserForm((current) => ({
@@ -2655,7 +2715,7 @@ function App() {
                     </label>
                     <label>
                       Email
-                      <input
+                      <input name="email" autoComplete="email"
                         type="email"
                         value={newUserForm.email}
                         onChange={(event) =>
@@ -2669,7 +2729,7 @@ function App() {
                     </label>
                     <label>
                       Temporary password
-                      <input
+                      <input name="password" autoComplete="new-password"
                         type="password"
                         minLength={8}
                         value={newUserForm.password}
@@ -2693,7 +2753,7 @@ function App() {
                     <span>{filteredAdminUsers.length} entries</span>
                   </div>
                   <div className="unit-toolbar users-toolbar">
-                    <input
+                    <input name="userSearch" autoComplete="off"
                       value={userSearch}
                       onChange={(event) => {
                         setUserSearch(event.target.value);
@@ -2701,7 +2761,7 @@ function App() {
                       }}
                       placeholder="Search name, username, email"
                     />
-                    <select
+                    <select name="userPageSize" autoComplete="off"
                       value={userPageSize}
                       onChange={(event) => {
                         setUserPageSize(Number(event.target.value));
@@ -2741,7 +2801,7 @@ function App() {
                               </td>
                               <td>{user.email}</td>
                               <td>
-                                <select
+                                <select name="status" autoComplete="off"
                                   value={user.status}
                                   onChange={(event) =>
                                     void updateUserStatus(user.id, event.target.value)
@@ -2758,7 +2818,7 @@ function App() {
                                   : "No role assigned"}
                               </td>
                               <td>
-                                <select
+                                <select name="role" autoComplete="off"
                                   defaultValue=""
                                   onChange={(event) => {
                                     if (event.target.value)
@@ -2836,7 +2896,7 @@ function App() {
                     </div>
                     <label>
                       Role name
-                      <input
+                      <input name="newRoleName" autoComplete="off"
                         value={newRoleName}
                         onChange={(event) => setNewRoleName(event.target.value)}
                         placeholder="Supervisor"
@@ -2863,7 +2923,7 @@ function App() {
                     <div className="permission-list">
                       {permissions.map((permission) => (
                         <label className="permission-toggle" key={permission}>
-                          <input
+                          <input name="permission" autoComplete="off"
                             type="checkbox"
                             checked={rolePermissions.includes(permission)}
                             onChange={(event) =>
@@ -2882,7 +2942,7 @@ function App() {
                     <span>{filteredRoles.length} entries</span>
                   </div>
                   <div className="unit-toolbar roles-toolbar">
-                    <input
+                    <input name="roleSearch" autoComplete="off"
                       value={roleSearch}
                       onChange={(event) => {
                         setRoleSearch(event.target.value);
@@ -2890,7 +2950,7 @@ function App() {
                       }}
                       placeholder="Search role"
                     />
-                    <select
+                    <select name="rolePageSize" autoComplete="off"
                       value={rolePageSize}
                       onChange={(event) => {
                         setRolePageSize(Number(event.target.value));
@@ -2991,7 +3051,7 @@ function App() {
                     </div>
                     <label>
                       Name
-                      <input
+                      <input name="name" autoComplete="off"
                         value={expenseCategoryForm.name}
                         onChange={(event) =>
                           setExpenseCategoryForm((current) => ({
@@ -3014,7 +3074,7 @@ function App() {
                     <span>{filteredExpenseCategories.length} entries</span>
                   </div>
                   <div className="unit-toolbar expenses-toolbar">
-                    <input
+                    <input name="expenseSearch" autoComplete="off"
                       value={expenseSearch}
                       onChange={(event) => {
                         setExpenseSearch(event.target.value);
@@ -3022,7 +3082,7 @@ function App() {
                       }}
                       placeholder="Search category"
                     />
-                    <select
+                    <select name="expensePageSize" autoComplete="off"
                       value={expensePageSize}
                       onChange={(event) => {
                         setExpensePageSize(Number(event.target.value));
@@ -3106,7 +3166,7 @@ function App() {
             </div>
             <div className="report-controls">
               {reportMode !== "cashflow" && !(reportMode === "tenants" && selectedBuildingID !== "hq") && (
-                <input
+                <input name="reportSearch" autoComplete="off"
                   className="report-search"
                   value={reportSearch}
                   onChange={(event) => { setReportSearch(event.target.value); setReportPage(1); }}
@@ -3115,12 +3175,12 @@ function App() {
               )}
               {(reportMode === "transactions" || reportMode === "expenses" || reportMode === "rent") && (
                 <>
-                  <input type="date" value={reportDateFrom} onChange={(event) => { setReportDateFrom(event.target.value); setReportPage(1); }} aria-label="From date" />
-                  <input type="date" value={reportDateTo} onChange={(event) => { setReportDateTo(event.target.value); setReportPage(1); }} aria-label="To date" />
+                  <input name="reportDateFrom" autoComplete="off" type="date" value={reportDateFrom} onChange={(event) => { setReportDateFrom(event.target.value); setReportPage(1); }} aria-label="From date" />
+                  <input name="reportDateTo" autoComplete="off" type="date" value={reportDateTo} onChange={(event) => { setReportDateTo(event.target.value); setReportPage(1); }} aria-label="To date" />
                 </>
               )}
               {!(reportMode === "tenants" && selectedBuildingID !== "hq") && (
-                <select value={reportPageSize} onChange={(event) => { setReportPageSize(Number(event.target.value)); setReportPage(1); }}>
+                <select name="reportPageSize" autoComplete="off" value={reportPageSize} onChange={(event) => { setReportPageSize(Number(event.target.value)); setReportPage(1); }}>
                   <option value="10">10 entries</option>
                   <option value="25">25 entries</option>
                   <option value="50">50 entries</option>
@@ -3131,7 +3191,7 @@ function App() {
             {reportMode === "tenants" && (
               <div className="panel list-panel report-panel">
                 <div className="report-controls tenant-select-controls">
-                  <select value={reportTenantID} onChange={(event) => { const id = event.target.value; setReportPage(1); if (selectedBuildingID === "hq") { setReportTenantID(id); return; } if (id) { goTo(`/reports/tenant-statement/${id}`); } else { goTo("/reports/tenants"); } }}>
+                  <select name="reportTenantID" autoComplete="off" value={reportTenantID} onChange={(event) => { const id = event.target.value; setReportPage(1); if (selectedBuildingID === "hq") { setReportTenantID(id); return; } if (id) { goTo(`/reports/tenant-statement/${id}`); } else { goTo("/reports/tenants"); } }}>
                     <option value="">{selectedBuildingID === "hq" ? "All tenants" : "Select tenant…"}</option>
                     {tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name || "Unnamed tenant"}</option>)}
                   </select>
@@ -3226,7 +3286,7 @@ function App() {
               <button
                 className="secondary-button buildings-add-button"
                 type="button"
-                onClick={() => goTo("/buildings/new")}
+                onClick={() => { setEditingBuildingID(null); setForm(defaultForm); goTo("/buildings/new"); }}
               >
                 + Add building
               </button>
@@ -3234,12 +3294,13 @@ function App() {
             {buildingPageMode === "create" && (
               <form className="panel form-panel" onSubmit={handleSubmit}>
                 <div className="section-heading">
-                  <h2>Add building</h2>
+                  <h2>{editingBuildingID ? "Edit building" : "Add building"}</h2>
                   <button
                     className="secondary-button"
                     type="button"
                     onClick={() => {
                       setForm(defaultForm);
+                      setEditingBuildingID(null);
                       setFormError("");
                       goTo("/buildings");
                     }}
@@ -3249,7 +3310,7 @@ function App() {
                 </div>
                 <label>
                   Building name
-                  <input
+                  <input autoComplete="off"
                     name="name"
                     value={form.name}
                     onChange={handleChange}
@@ -3258,7 +3319,7 @@ function App() {
                 </label>
                 <label>
                   Building code
-                  <input
+                  <input autoComplete="off"
                     name="code"
                     value={form.code}
                     onChange={handleChange}
@@ -3267,7 +3328,7 @@ function App() {
                 </label>
                 <label>
                   Address
-                  <input
+                  <input autoComplete="off"
                     name="address"
                     value={form.address}
                     onChange={handleChange}
@@ -3276,7 +3337,7 @@ function App() {
                 </label>
                 <label>
                   Description
-                  <textarea
+                  <textarea autoComplete="off"
                     name="description"
                     value={form.description}
                     onChange={handleChange}
@@ -3285,18 +3346,19 @@ function App() {
                 </label>
                 <div className="inline-fields">
                   <label>
-                    Floors
-                    <input
+                    Floors above ground
+                    <input autoComplete="off"
                       type="number"
-                      min="1"
+                      min="0"
                       name="floors"
+                      disabled={Boolean(editingBuildingID)}
                       value={form.floors}
                       onChange={handleChange}
                     />
                   </label>
                   <label>
                     Status
-                    <select
+                    <select autoComplete="off"
                       name="status"
                       value={form.status}
                       onChange={handleChange}
@@ -3321,7 +3383,7 @@ function App() {
                   <span>{filteredBuildings.length} entries</span>
                 </div>
                 <div className="unit-toolbar building-toolbar">
-                  <input
+                  <input name="buildingSearch" autoComplete="off"
                     value={buildingSearch}
                     onChange={(event) => {
                       setBuildingSearch(event.target.value);
@@ -3329,7 +3391,7 @@ function App() {
                     }}
                     placeholder="Search name, code, address"
                   />
-                  <select
+                  <select name="buildingStatusFilter" autoComplete="off"
                     value={buildingStatusFilter}
                     onChange={(event) => {
                       setBuildingStatusFilter(event.target.value);
@@ -3341,7 +3403,7 @@ function App() {
                     <option>Maintenance</option>
                     <option>Closed</option>
                   </select>
-                  <select
+                  <select name="buildingPageSize" autoComplete="off"
                     value={buildingPageSize}
                     onChange={(event) => {
                       setBuildingPageSize(Number(event.target.value));
@@ -3364,12 +3426,13 @@ function App() {
                         <th>Floors</th>
                         <th>Description</th>
                         <th>Status</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {visibleBuildings.length === 0 ? (
                         <tr>
-                          <td colSpan={7}>No buildings match these filters.</td>
+                          <td colSpan={8}>No buildings match these filters.</td>
                         </tr>
                       ) : (
                         visibleBuildings.map((building, index) => (
@@ -3392,6 +3455,10 @@ function App() {
                               >
                                 {building.status}
                               </span>
+                            </td>
+                            <td>
+                              <button className="table-action edit" type="button" onClick={() => editBuilding(building)}>Edit</button>
+                              {!building.unit_count && <button className="table-action delete" type="button" onClick={() => void deleteBuilding(building)}>Delete</button>}
                             </td>
                           </tr>
                         ))
@@ -3469,7 +3536,7 @@ function App() {
                 {selectedBuildingID === "hq" && (
                   <label>
                     Building
-                    <select
+                    <select name="targetBuildingID" autoComplete="off"
                       value={targetBuildingID}
                       onChange={(event) => setTargetBuildingID(event.target.value)}
                       required
@@ -3486,7 +3553,7 @@ function App() {
                 <div className="unit-entry-list">
                   {unitRows.map((row, rowIndex) => (
                     <div className="unit-entry-row" key={rowIndex}>
-                      <input
+                      <input name="number" autoComplete="off"
                         value={row.number}
                         onChange={(event) =>
                           updateUnitRow(rowIndex, "number", event.target.value)
@@ -3494,7 +3561,7 @@ function App() {
                         placeholder="Room no."
                         required
                       />
-                      <select
+                      <select name="floor_id" autoComplete="off"
                         value={row.floor_id}
                         onChange={(event) =>
                           updateUnitRow(
@@ -3511,7 +3578,7 @@ function App() {
                           </option>
                         ))}
                       </select>
-                      <select
+                      <select name="type" autoComplete="off"
                         value={row.type}
                         onChange={(event) =>
                           updateUnitRow(rowIndex, "type", event.target.value)
@@ -3521,7 +3588,7 @@ function App() {
                         <option>Commercial</option>
                         <option>Service</option>
                       </select>
-                      <input
+                      <input onFocus={(event) => event.target.select()} name="base_rent" autoComplete="off"
                         inputMode="decimal"
                         value={row.base_rent}
                         onChange={(event) =>
@@ -3555,14 +3622,14 @@ function App() {
                   <button className="secondary-button" type="button" onClick={() => { setRentUnitID(null); goTo("/rooms"); }}>Back to list</button>
                 </div>
                 <p className="empty-state">{selectedBuilding?.name} · Room {units.find((unit) => unit.id === rentUnitID)?.number}</p>
-                <label>Tenant<select name="tenant_id" value={contractForm.tenant_id} onChange={handleContractChange} required><option value="">Select tenant</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}</select></label>
-                <div className="inline-fields"><label>Start date<input type="date" name="start_date" value={contractForm.start_date} onChange={handleContractChange} required /></label><label>Period (months)<input type="number" min="1" name="period" value={contractForm.period} onChange={handleContractChange} required /></label></div>
-                <div className="inline-fields"><label>End date<input type="date" value={calculatedEndDate} readOnly /></label><label>Required monthly rent<input inputMode="decimal" value={contractForm.monthly_rent} readOnly /></label></div>
-                <div className="inline-fields"><label>Prepaid amount<input inputMode="decimal" name="prepaid_amount" value={contractForm.prepaid_amount} onChange={(event) => setContractForm((current) => ({ ...current, prepaid_amount: formatAmount(event.target.value) }))} /><small className="field-help">Amount paid now. Enter 0 when no payment is received.</small></label><label>Total amount<input value={formatAmount(totalRent)} readOnly /></label></div>
-                <label>Balance<input value={formatAmount(balanceAmount)} readOnly /></label>
-                <div className="inline-fields"><label>Payment date<input type="date" name="payment_date" value={contractForm.payment_date} onChange={handleContractChange} required /></label><label>Payment method<select name="payment_method" value={contractForm.payment_method} onChange={handleContractChange}><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Cheque</option></select></label></div>
-                <label>Payment frequency<select name="payment_frequency" value={contractForm.payment_frequency} onChange={handleContractChange}><option>Monthly</option><option>Every 3 months</option><option>Every 6 months</option><option>Yearly</option></select></label>
-                <label>Notes<textarea name="notes" value={contractForm.notes} onChange={handleContractChange} placeholder="Lease notes" /></label>
+                <label>Tenant<select autoComplete="off" name="tenant_id" value={contractForm.tenant_id} onChange={handleContractChange} required><option value="">Select tenant</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}</select></label>
+                <div className="inline-fields"><label>Start date<input autoComplete="off" type="date" name="start_date" value={contractForm.start_date} onChange={handleContractChange} required /></label><label>Period (months)<input autoComplete="off" type="number" min="1" name="period" value={contractForm.period} onChange={handleContractChange} required /></label></div>
+                <div className="inline-fields"><label>End date<input name="end_date" autoComplete="off" type="date" value={calculatedEndDate} readOnly /></label><label>Required monthly rent<input name="monthly_rent" autoComplete="off" inputMode="decimal" value={contractForm.monthly_rent} readOnly /></label></div>
+                <div className="inline-fields"><label>Prepaid amount<input onFocus={(event) => event.target.select()} autoComplete="off" inputMode="decimal" name="prepaid_amount" value={contractForm.prepaid_amount} onChange={(event) => setContractForm((current) => ({ ...current, prepaid_amount: formatAmount(event.target.value) }))} /><small className="field-help">Amount paid now. Enter 0 when no payment is received.</small></label><label>Total amount<input name="total_amount" autoComplete="off" value={formatAmount(totalRent)} readOnly /></label></div>
+                <label>Balance<input name="balance" autoComplete="off" value={formatAmount(balanceAmount)} readOnly /></label>
+                <div className="inline-fields"><label>Payment date<input autoComplete="off" type="date" name="payment_date" value={contractForm.payment_date} onChange={handleContractChange} required /></label><label>Payment method<select autoComplete="off" name="payment_method" value={contractForm.payment_method} onChange={handleContractChange}><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Cheque</option></select></label></div>
+                <label>Payment frequency<select autoComplete="off" name="payment_frequency" value={contractForm.payment_frequency} onChange={handleContractChange}><option>Monthly</option><option>Every 3 months</option><option>Every 6 months</option><option>Yearly</option></select></label>
+                <label>Notes<textarea autoComplete="off" name="notes" value={contractForm.notes} onChange={handleContractChange} placeholder="Lease notes" /></label>
                 <button className="primary-button" type="submit">Create contract</button>
               </form>
             )}
@@ -3577,7 +3644,7 @@ function App() {
               </div>
               <>
                 <div className="unit-toolbar">
-                  <input
+                  <input name="unitSearch" autoComplete="off"
                     value={unitSearch}
                     onChange={(event) => {
                       setUnitSearch(event.target.value);
@@ -3585,7 +3652,7 @@ function App() {
                     }}
                     placeholder="Search room number"
                   />
-                  <select
+                  <select name="unitFloorFilter" autoComplete="off"
                     value={unitFloorFilter}
                     onChange={(event) => {
                       setUnitFloorFilter(event.target.value);
@@ -3599,7 +3666,7 @@ function App() {
                       </option>
                     ))}
                   </select>
-                  <select
+                  <select name="unitTypeFilter" autoComplete="off"
                     value={unitTypeFilter}
                     onChange={(event) => {
                       setUnitTypeFilter(event.target.value);
@@ -3611,7 +3678,7 @@ function App() {
                     <option>Commercial</option>
                     <option>Service</option>
                   </select>
-                  <select
+                  <select name="unitStatusFilter" autoComplete="off"
                     value={unitStatusFilter}
                     onChange={(event) => {
                       setUnitStatusFilter(event.target.value);
@@ -3624,7 +3691,7 @@ function App() {
                     <option>Reserved</option>
                     <option>Maintenance</option>
                   </select>
-                  <select
+                  <select name="unitPageSize" autoComplete="off"
                     value={unitPageSize}
                     onChange={(event) => {
                       setUnitPageSize(Number(event.target.value));
@@ -3752,7 +3819,7 @@ function App() {
                 </p>
                 <label>
                   Room
-                  <select name="unit_id" value={proformaForm.unit_id} onChange={handleProformaChange} required>
+                  <select autoComplete="off" name="unit_id" value={proformaForm.unit_id} onChange={handleProformaChange} required>
                     <option value="">Choose room</option>
                     {units.filter((unit) => unit.status === "Vacant").map((unit) => (
                       <option key={unit.id} value={unit.id}>{unit.number}</option>
@@ -3761,36 +3828,36 @@ function App() {
                 </label>
                 <label>
                   Monthly price
-                  <input value={proformaForm.unit_id ? formatAmount(units.find((unit) => String(unit.id) === proformaForm.unit_id)?.base_rent ?? 0) : ""} readOnly />
+                  <input name="unit_id" autoComplete="off" value={proformaForm.unit_id ? formatAmount(units.find((unit) => String(unit.id) === proformaForm.unit_id)?.base_rent ?? 0) : ""} readOnly />
                 </label>
                 <label>
                   Entry date
-                  <input type="date" name="start_date" value={proformaForm.start_date} onChange={handleProformaChange} required />
+                  <input autoComplete="off" type="date" name="start_date" value={proformaForm.start_date} onChange={handleProformaChange} required />
                 </label>
                 <label>
                   Period (months)
-                  <input type="number" min="1" name="period" value={proformaForm.period} onChange={handleProformaChange} required />
+                  <input autoComplete="off" type="number" min="1" name="period" value={proformaForm.period} onChange={handleProformaChange} required />
                 </label>
                 <label>
                   Ending date
-                  <input value={(() => { const start = new Date(`${proformaForm.start_date}T00:00:00`); const period = Math.max(1, Number(proformaForm.period) || 1); return proformaForm.start_date ? localISODate(new Date(start.getFullYear(), start.getMonth() + period, start.getDate())) : ""; })()} readOnly />
+                  <input name="end_date" autoComplete="off" value={(() => { const start = new Date(`${proformaForm.start_date}T00:00:00`); const period = Math.max(1, Number(proformaForm.period) || 1); return proformaForm.start_date ? localISODate(new Date(start.getFullYear(), start.getMonth() + period, start.getDate())) : ""; })()} readOnly />
                 </label>
                 <label>
                   Total amount
-                  <input value={formatAmount((units.find((unit) => String(unit.id) === proformaForm.unit_id)?.base_rent ?? 0) * (Number(proformaForm.period) || 1))} readOnly />
+                  <input name="total_amount" autoComplete="off" value={formatAmount((units.find((unit) => String(unit.id) === proformaForm.unit_id)?.base_rent ?? 0) * (Number(proformaForm.period) || 1))} readOnly />
                 </label>
                 <label>
                   Prepaid amount
-                  <input inputMode="decimal" name="prepaid_amount" value={proformaForm.prepaid_amount} onChange={handleProformaChange} />
+                  <input onFocus={(event) => event.target.select()} autoComplete="off" inputMode="decimal" name="prepaid_amount" value={proformaForm.prepaid_amount} onChange={handleProformaChange} />
                   <small className="field-help">If customer pays now, put amount here. (0 = no payment)</small>
                 </label>
                 <label>
                   Balance
-                  <input value={formatAmount(Math.max(0, (units.find((unit) => String(unit.id) === proformaForm.unit_id)?.base_rent ?? 0) * (Number(proformaForm.period) || 1) - amountNumber(proformaForm.prepaid_amount)))} readOnly />
+                  <input name="balance" autoComplete="off" value={formatAmount(Math.max(0, (units.find((unit) => String(unit.id) === proformaForm.unit_id)?.base_rent ?? 0) * (Number(proformaForm.period) || 1) - amountNumber(proformaForm.prepaid_amount)))} readOnly />
                 </label>
                 <label>
                   Payment date
-                  <input type="date" name="issue_date" value={proformaForm.issue_date} onChange={handleProformaChange} required />
+                  <input autoComplete="off" type="date" name="issue_date" value={proformaForm.issue_date} onChange={handleProformaChange} required />
                 </label>
                 <button className="primary-button" type="submit">Generate invoice</button>
               </form>
@@ -3822,7 +3889,7 @@ function App() {
                 </div>
               <label>
                 Tenant type
-                <select
+                <select autoComplete="off"
                   name="type"
                   value={tenantForm.type}
                   onChange={handleTenantChange}
@@ -3835,7 +3902,7 @@ function App() {
                 <>
                   <label>
                     Full name
-                    <input
+                    <input autoComplete="name"
                       name="full_name"
                       value={tenantForm.full_name}
                       onChange={handleTenantChange}
@@ -3847,7 +3914,7 @@ function App() {
                 <>
                   <label>
                     Company name
-                    <input
+                    <input autoComplete="organization"
                       name="company_name"
                       value={tenantForm.company_name}
                       onChange={handleTenantChange}
@@ -3856,7 +3923,7 @@ function App() {
                   </label>
                   <label>
                     Contact person
-                    <input
+                    <input autoComplete="off"
                       name="contact_person"
                       value={tenantForm.contact_person}
                       onChange={handleTenantChange}
@@ -3867,7 +3934,7 @@ function App() {
               )}
               <label>
                 Phone
-                <input
+                <input autoComplete="tel"
                   name="phone"
                   value={tenantForm.phone}
                   onChange={handleTenantChange}
@@ -3876,7 +3943,7 @@ function App() {
               </label>
               <label>
                 Email
-                <input
+                <input autoComplete="email"
                   name="email"
                   value={tenantForm.email}
                   onChange={handleTenantChange}
@@ -3885,7 +3952,7 @@ function App() {
               </label>
               <label>
                 Address
-                <textarea
+                <textarea autoComplete="off"
                   name="address"
                   value={tenantForm.address}
                   onChange={handleTenantChange}
@@ -3894,7 +3961,7 @@ function App() {
               </label>
               <label>
                 ID / registration ref
-                <input
+                <input autoComplete="off"
                   name="id_number"
                   value={tenantForm.id_number}
                   onChange={handleTenantChange}
@@ -3913,7 +3980,7 @@ function App() {
                 <span>{filteredTenants.length} entries</span>
               </div>
               <div className="unit-toolbar tenant-toolbar">
-                <input
+                <input name="tenantSearch" autoComplete="off"
                   value={tenantSearch}
                   onChange={(event) => {
                     setTenantSearch(event.target.value);
@@ -3921,7 +3988,7 @@ function App() {
                   }}
                   placeholder="Search tenant"
                 />
-                <select
+                <select name="tenantTypeFilter" autoComplete="off"
                   value={tenantTypeFilter}
                   onChange={(event) => {
                     setTenantTypeFilter(event.target.value);
@@ -3932,7 +3999,7 @@ function App() {
                   <option>Person</option>
                   <option>Institution</option>
                 </select>
-                <select
+                <select name="tenantPageSize" autoComplete="off"
                   value={tenantPageSize}
                   onChange={(event) => {
                     setTenantPageSize(Number(event.target.value));
@@ -4055,16 +4122,16 @@ function App() {
                       <p>{tenant?.full_name || tenant?.company_name || "Tenant"} · Room {unit?.number || "-"}</p>
                     </div>
                     <div className="upgrade-form-grid">
-                      <label><span>Room</span><input value={unit?.number || ""} readOnly /></label>
-                      <label><span>Monthly price</span><input value={formatAmount(contract?.monthly_rent ?? 0)} readOnly /></label>
-                      <label><span>Entry date</span><input value={dateOnly(contract?.start_date || "")} readOnly /></label>
-                      <label><span>Current ending date</span><input value={dateOnly(contract?.end_date || "")} readOnly /></label>
-                      <label><span>Add period (months)</span><select name="period" value={contractUpgradeForm.period} onChange={(event) => setContractUpgradeForm((current) => ({ ...current, period: event.target.value }))} required><option value="">Select months</option>{Array.from({ length: 24 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} {index === 0 ? "month" : "months"}</option>)}</select></label>
-                      <label><span>New ending date</span><input value={endDate} placeholder="yyyy-mm-dd" readOnly /></label>
-                      <label><span>Total amount (added)</span><input value={period ? formatAmount(addedAmount) : ""} readOnly /></label>
-                      <label><span>Prepaid amount</span><span className="upgrade-control"><input inputMode="decimal" name="prepaid_amount" value={contractUpgradeForm.prepaid_amount} onChange={(event) => setContractUpgradeForm((current) => ({ ...current, prepaid_amount: formatAmount(event.target.value) }))} /><small className="field-help">0 = no payment</small></span></label>
-                      <label><span>Balance</span><input value={formatAmount(Math.max(0, addedAmount - amountNumber(contractUpgradeForm.prepaid_amount)))} readOnly /></label>
-                      <label><span>Date</span><input type="date" name="payment_date" value={contractUpgradeForm.payment_date} onChange={(event) => setContractUpgradeForm((current) => ({ ...current, payment_date: event.target.value }))} required /></label>
+                      <label><span>Room</span><input name="unit" autoComplete="off" value={unit?.number || ""} readOnly /></label>
+                      <label><span>Monthly price</span><input name="monthly_price" autoComplete="off" value={formatAmount(contract?.monthly_rent ?? 0)} readOnly /></label>
+                      <label><span>Entry date</span><input name="start_date" autoComplete="off" value={dateOnly(contract?.start_date || "")} readOnly /></label>
+                      <label><span>Current ending date</span><input name="current_end_date" autoComplete="off" value={dateOnly(contract?.end_date || "")} readOnly /></label>
+                      <label><span>Add period (months)</span><select autoComplete="off" name="period" value={contractUpgradeForm.period} onChange={(event) => setContractUpgradeForm((current) => ({ ...current, period: event.target.value }))} required><option value="">Select months</option>{Array.from({ length: 24 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} {index === 0 ? "month" : "months"}</option>)}</select></label>
+                      <label><span>New ending date</span><input name="new_end_date" autoComplete="off" value={endDate} placeholder="yyyy-mm-dd" readOnly /></label>
+                      <label><span>Total amount (added)</span><input name="period" autoComplete="off" value={period ? formatAmount(addedAmount) : ""} readOnly /></label>
+                      <label><span>Prepaid amount</span><span className="upgrade-control"><input onFocus={(event) => event.target.select()} autoComplete="off" inputMode="decimal" name="prepaid_amount" value={contractUpgradeForm.prepaid_amount} onChange={(event) => setContractUpgradeForm((current) => ({ ...current, prepaid_amount: formatAmount(event.target.value) }))} /><small className="field-help">0 = no payment</small></span></label>
+                      <label><span>Balance</span><input name="balance" autoComplete="off" value={formatAmount(Math.max(0, addedAmount - amountNumber(contractUpgradeForm.prepaid_amount)))} readOnly /></label>
+                      <label><span>Date</span><input autoComplete="off" type="date" name="payment_date" value={contractUpgradeForm.payment_date} onChange={(event) => setContractUpgradeForm((current) => ({ ...current, payment_date: event.target.value }))} required /></label>
                     </div>
                     <div className="upgrade-actions"><button className="primary-button" type="submit">Save upgrade</button><button className="secondary-button" type="button" onClick={() => goTo("/contracts")}>Back</button></div>
                   </form>
@@ -4081,11 +4148,11 @@ function App() {
                   </p>
                   <label>
                     Document name
-                    <input value={documentName} onChange={(event) => setDocumentName(event.target.value)} placeholder="Signed lease agreement" />
+                    <input name="documentName" autoComplete="off" value={documentName} onChange={(event) => setDocumentName(event.target.value)} placeholder="Signed lease agreement" />
                   </label>
                   <label>
                     PDF or Word file
-                    <input type="file" required accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} />
+                    <input name="document_file" autoComplete="off" type="file" required accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} />
                   </label>
                   <button className="primary-button" type="submit">Upload signed contract</button>
                 </form>
@@ -4097,7 +4164,7 @@ function App() {
                 <div className="section-heading"><h2>{contractPageMode === "edit" ? "Edit contract" : "Add contract"}</h2><button className="secondary-button" type="button" onClick={() => { setEditingContractID(null); setContractForm(defaultContractForm); goTo("/contracts"); }}>Back to list</button></div>
                 <label>
                   Tenant
-                  <select
+                  <select autoComplete="off"
                     name="tenant_id"
                     value={contractForm.tenant_id}
                     onChange={handleContractChange}
@@ -4113,7 +4180,7 @@ function App() {
                 </label>
                 <label>
                   Room
-                  <select
+                  <select autoComplete="off"
                     name="unit_id"
                     value={contractForm.unit_id}
                     onChange={handleContractChange}
@@ -4133,7 +4200,7 @@ function App() {
                 <div className="inline-fields">
                   <label>
                     Contract type
-                    <select
+                    <select autoComplete="off"
                       name="contract_type"
                       value={contractForm.contract_type}
                       onChange={handleContractChange}
@@ -4145,7 +4212,7 @@ function App() {
                   </label>
                   <label>
                     Status
-                    <select
+                    <select autoComplete="off"
                       name="status"
                       value={contractForm.status}
                       onChange={handleContractChange}
@@ -4160,7 +4227,7 @@ function App() {
                 <div className="inline-fields">
                   <label>
                     Start date
-                    <input
+                    <input autoComplete="off"
                       type="date"
                       name="start_date"
                       value={contractForm.start_date}
@@ -4169,7 +4236,7 @@ function App() {
                   </label>
                   <label>
                     End date
-                    <input
+                    <input autoComplete="off"
                       type="date"
                       name="end_date"
                       value={contractForm.end_date}
@@ -4179,7 +4246,7 @@ function App() {
                 </div>
                 <label>
                   Monthly rent
-                  <input
+                  <input onFocus={(event) => event.target.select()} autoComplete="off"
                     inputMode="decimal"
                     name="monthly_rent"
                     value={contractForm.monthly_rent}
@@ -4194,7 +4261,7 @@ function App() {
                 {contractPageMode === "create" && (
                   <label>
                     Prepaid amount
-                    <input
+                    <input onFocus={(event) => event.target.select()} autoComplete="off"
                       inputMode="decimal"
                       name="prepaid_amount"
                       value={contractForm.prepaid_amount}
@@ -4206,13 +4273,13 @@ function App() {
                 {contractPageMode === "create" && (
                   <label>
                     Payment date
-                    <input type="date" name="payment_date" value={contractForm.payment_date} onChange={handleContractChange} required />
+                    <input autoComplete="off" type="date" name="payment_date" value={contractForm.payment_date} onChange={handleContractChange} required />
                   </label>
                 )}
                 <div className="inline-fields">
                   <label>
                     Payment method
-                    <select
+                    <select autoComplete="off"
                       name="payment_method"
                       value={contractForm.payment_method}
                       onChange={handleContractChange}
@@ -4225,7 +4292,7 @@ function App() {
                   </label>
                   <label>
                     Payment frequency
-                    <select
+                    <select autoComplete="off"
                       name="payment_frequency"
                       value={contractForm.payment_frequency}
                       onChange={handleContractChange}
@@ -4239,7 +4306,7 @@ function App() {
                 </div>
                 <label>
                   Utilities responsibility
-                  <input
+                  <input autoComplete="off"
                     name="utility_responsibility"
                     value={contractForm.utility_responsibility}
                     onChange={handleContractChange}
@@ -4247,7 +4314,7 @@ function App() {
                 </label>
                 <label>
                   Lease terms
-                  <textarea
+                  <textarea autoComplete="off"
                     name="terms"
                     value={contractForm.terms}
                     onChange={handleContractChange}
@@ -4256,7 +4323,7 @@ function App() {
                 </label>
                 <label>
                   Notes
-                  <textarea
+                  <textarea autoComplete="off"
                     name="notes"
                     value={contractForm.notes}
                     onChange={handleContractChange}
@@ -4271,9 +4338,9 @@ function App() {
               <div className="panel list-panel">
                 <div className="section-heading"><h2>Contracts</h2><span>{filteredContracts.length} entries</span></div>
                 <div className="unit-toolbar contract-toolbar">
-                  <input value={contractSearch} onChange={(event) => { setContractSearch(event.target.value); setContractPage(1); }} placeholder="Search tenant or room" />
-                  <select value={contractStatusFilter} onChange={(event) => { setContractStatusFilter(event.target.value); setContractPage(1); }}><option>All</option><option>Active</option><option>Expired</option><option>Cancelled</option><option>Draft</option></select>
-                  <select value={contractPageSize} onChange={(event) => { setContractPageSize(Number(event.target.value)); setContractPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
+                  <input name="contractSearch" autoComplete="off" value={contractSearch} onChange={(event) => { setContractSearch(event.target.value); setContractPage(1); }} placeholder="Search tenant or room" />
+                  <select name="contractStatusFilter" autoComplete="off" value={contractStatusFilter} onChange={(event) => { setContractStatusFilter(event.target.value); setContractPage(1); }}><option>All</option><option>Active</option><option>Expired</option><option>Cancelled</option><option>Draft</option></select>
+                  <select name="contractPageSize" autoComplete="off" value={contractPageSize} onChange={(event) => { setContractPageSize(Number(event.target.value)); setContractPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
                 </div>
                 <div className="unit-table-wrap"><table className="unit-table contract-table"><thead><tr><th>No.</th><th>Customer</th><th>Room</th><th>Type</th><th>Start</th><th>End</th><th>Time left</th><th>Price</th><th>Invoice</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>
                   {visibleContracts.length === 0 ? <tr><td colSpan={13}>No contracts match these filters.</td></tr> : visibleContracts.map((contract, index) => {
@@ -4309,20 +4376,20 @@ function App() {
                   <div><span>Invoice</span><strong>{invoice?.number || "-"}</strong></div>
                   <div><span>Balance</span><strong>{formatAmount(balance)}</strong></div>
                 </div>
-                <label>Amount received<input name="amount" inputMode="decimal" value={paymentForm.amount} onChange={(event) => setPaymentForm((current) => ({ ...current, amount: formatAmount(event.target.value) }))} required /></label>
-                <div className="inline-fields"><label>Payment date<input name="payment_date" type="date" value={paymentForm.payment_date} onChange={handlePaymentChange} required /></label><label>Method<select name="payment_method" value={paymentForm.payment_method} onChange={handlePaymentChange}><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Card</option><option>Cheque</option></select></label></div>
-                <label>Payment reference<input name="payment_reference" value={paymentForm.payment_reference} onChange={handlePaymentChange} placeholder="Bank or receipt reference" required /></label>
-                <label>Receipt number<input name="receipt_number" value={paymentForm.receipt_number} onChange={handlePaymentChange} placeholder="Optional receipt number" /></label>
-                <label>Notes<textarea name="notes" value={paymentForm.notes} onChange={handlePaymentChange} placeholder="Optional payment notes" /></label>
+                <label>Amount received<input onFocus={(event) => event.target.select()} autoComplete="off" name="amount" inputMode="decimal" value={paymentForm.amount} onChange={(event) => setPaymentForm((current) => ({ ...current, amount: formatAmount(event.target.value) }))} required /></label>
+                <div className="inline-fields"><label>Payment date<input autoComplete="off" name="payment_date" type="date" value={paymentForm.payment_date} onChange={handlePaymentChange} required /></label><label>Method<select autoComplete="off" name="payment_method" value={paymentForm.payment_method} onChange={handlePaymentChange}><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Card</option><option>Cheque</option></select></label></div>
+                <label>Payment reference<input autoComplete="off" name="payment_reference" value={paymentForm.payment_reference} onChange={handlePaymentChange} placeholder="Bank or receipt reference" required /></label>
+                <label>Receipt number<input autoComplete="off" name="receipt_number" value={paymentForm.receipt_number} onChange={handlePaymentChange} placeholder="Optional receipt number" /></label>
+                <label>Notes<textarea autoComplete="off" name="notes" value={paymentForm.notes} onChange={handlePaymentChange} placeholder="Optional payment notes" /></label>
                 <button className="primary-button" type="submit">Record payment</button>
               </form>;
             })()}
             {invoicePageMode === "list" && <div className="panel list-panel">
               <div className="section-heading"><h2>Invoices</h2><span>{filteredInvoices.length} entries</span></div>
               <div className="unit-toolbar invoice-toolbar">
-                <input value={invoiceSearch} onChange={(event) => { setInvoiceSearch(event.target.value); setInvoicePage(1); }} placeholder="Search invoice, tenant, or room" />
-                <select value={invoiceStatusFilter} onChange={(event) => { setInvoiceStatusFilter(event.target.value); setInvoicePage(1); }}><option>All</option><option>Pending</option><option>Partially Paid</option><option>Paid</option><option>Overdue</option><option>Cancelled</option></select>
-                <select value={invoicePageSize} onChange={(event) => { setInvoicePageSize(Number(event.target.value)); setInvoicePage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
+                <input name="invoiceSearch" autoComplete="off" value={invoiceSearch} onChange={(event) => { setInvoiceSearch(event.target.value); setInvoicePage(1); }} placeholder="Search invoice, tenant, or room" />
+                <select name="invoiceStatusFilter" autoComplete="off" value={invoiceStatusFilter} onChange={(event) => { setInvoiceStatusFilter(event.target.value); setInvoicePage(1); }}><option>All</option><option>Pending</option><option>Partially Paid</option><option>Paid</option><option>Overdue</option><option>Cancelled</option></select>
+                <select name="invoicePageSize" autoComplete="off" value={invoicePageSize} onChange={(event) => { setInvoicePageSize(Number(event.target.value)); setInvoicePage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
               </div>
               <div className="unit-table-wrap">
                 <table className="unit-table invoice-table">
@@ -4335,7 +4402,7 @@ function App() {
                       const paid = invoicePaidAmount(invoice.id);
                       const balance = Math.max(0, invoice.amount - paid);
                       const status = balance === 0 ? "Paid" : paid > 0 ? "Partially Paid" : invoice.status;
-                      return <tr key={invoice.id}><td>{(invoicePage - 1) * invoicePageSize + index + 1}</td><td>{invoice.number}</td><td>{tenant?.full_name || tenant?.company_name || "Unknown tenant"}</td><td>{tenant?.phone || "-"}</td><td>{unit?.number || "-"}</td><td><strong>{contract ? `${contractMonths(contract.start_date, contract.end_date)} month(s)` : "-"}</strong><small>{contract ? `${dateOnly(contract.start_date)} → ${dateOnly(contract.end_date)}` : dateOnly(invoice.issue_date)}</small></td><td>{formatAmount(contract?.monthly_rent || invoice.amount)}</td><td>{formatAmount(invoice.amount)}</td><td>{formatAmount(paid)}</td><td><strong>{formatAmount(balance)}</strong></td><td><span className={`invoice-status ${status.toLowerCase().replaceAll(" ", "-")}`}>{status}</span></td><td><div className="invoice-actions">{balance > 0 ? <button type="button" onClick={() => payInvoice(invoice)}>Payment</button> : <button className="paid-action" type="button" onClick={() => void showInvoicePayments(invoice)}>Payments</button>}<button className="outline" type="button" onClick={() => viewInvoice(invoice)}>Invoice</button></div></td></tr>;
+                      return <tr key={invoice.id}><td>{(invoicePage - 1) * invoicePageSize + index + 1}</td><td>{invoice.number}</td><td>{tenant?.full_name || tenant?.company_name || "Unknown tenant"}</td><td>{tenant?.phone || "-"}</td><td>{unit?.number || "-"}</td><td><strong>{contract ? `${contractMonths(contract.start_date, contract.end_date)} month(s)` : "-"}</strong><small>{contract ? `${dateOnly(contract.start_date)} → ${dateOnly(contract.end_date)}` : dateOnly(invoice.issue_date)}</small></td><td>{formatAmount(contract?.monthly_rent || invoice.amount)}</td><td>{formatAmount(invoice.amount)}</td><td>{formatAmount(paid)}</td><td><strong>{formatAmount(balance)}</strong></td><td><span className={`invoice-status ${status.toLowerCase().replaceAll(" ", "-")}`}>{status}</span></td><td><div className="invoice-actions">{balance > 0 ? <button type="button" onClick={() => payInvoice(invoice)}>Payment</button> : <button className="paid-action" type="button" onClick={() => void showInvoicePayments(invoice)}>Payments</button>}<button className="outline" type="button" onClick={() => viewInvoice(invoice)}>Invoice</button><button className="danger" type="button" onClick={() => void deleteInvoice(invoice)}>Delete</button></div></td></tr>;
                     })}
                   </tbody>
                 </table>
@@ -4352,14 +4419,14 @@ function App() {
               <div className="section-heading"><h2>Record payment</h2><button className="secondary-button" type="button" onClick={() => { setPaymentTenantID(""); setPaymentForm(defaultPaymentForm); goTo("/payments"); }}>Back to list</button></div>
               <label>
                 Customer
-                <select value={paymentTenantID} onChange={(event) => { setPaymentTenantID(event.target.value); setPaymentForm((current) => ({ ...current, invoice_id: "", amount: "" })); }} required>
+                <select name="paymentTenantID" autoComplete="off" value={paymentTenantID} onChange={(event) => { setPaymentTenantID(event.target.value); setPaymentForm((current) => ({ ...current, invoice_id: "", amount: "" })); }} required>
                   <option value="">Select customer</option>
                   {tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}
                 </select>
               </label>
               <label>
                 Invoice
-                <select
+                <select autoComplete="off"
                   name="invoice_id"
                   value={paymentForm.invoice_id}
                   onChange={handlePaymentChange}
@@ -4383,7 +4450,7 @@ function App() {
               </label>
               <label>
                 Amount received
-                <input
+                <input onFocus={(event) => event.target.select()} autoComplete="off"
                   name="amount"
                   inputMode="decimal"
                   value={paymentForm.amount}
@@ -4399,7 +4466,7 @@ function App() {
               <div className="inline-fields">
                 <label>
                   Payment date
-                  <input
+                  <input autoComplete="off"
                     name="payment_date"
                     type="date"
                     value={paymentForm.payment_date}
@@ -4409,7 +4476,7 @@ function App() {
                 </label>
                 <label>
                   Method
-                  <select
+                  <select autoComplete="off"
                     name="payment_method"
                     value={paymentForm.payment_method}
                     onChange={handlePaymentChange}
@@ -4424,7 +4491,7 @@ function App() {
               </div>
               <label>
                 Payment reference
-                <input
+                <input autoComplete="off"
                   name="payment_reference"
                   value={paymentForm.payment_reference}
                   onChange={handlePaymentChange}
@@ -4434,7 +4501,7 @@ function App() {
               </label>
               <label>
                 Receipt number
-                <input
+                <input autoComplete="off"
                   name="receipt_number"
                   value={paymentForm.receipt_number}
                   onChange={handlePaymentChange}
@@ -4443,7 +4510,7 @@ function App() {
               </label>
               <label>
                 Notes
-                <textarea
+                <textarea autoComplete="off"
                   name="notes"
                   value={paymentForm.notes}
                   onChange={handlePaymentChange}
@@ -4457,17 +4524,17 @@ function App() {
             {paymentPageMode === "list" && <div className="panel list-panel payment-ledger-panel">
               <div className="section-heading"><h2>Payment history</h2><span>{filteredPayments.length} entries · Total {formatAmount(filteredPaymentTotal)}</span></div>
               <div className="payment-filters">
-                <input value={paymentSearch} onChange={(event) => { setPaymentSearch(event.target.value); setPaymentPage(1); }} placeholder="Search reference, customer, room" />
-                <input type="date" value={paymentDateFrom} onChange={(event) => { setPaymentDateFrom(event.target.value); setPaymentPage(1); }} aria-label="From date" />
-                <input type="date" value={paymentDateTo} onChange={(event) => { setPaymentDateTo(event.target.value); setPaymentPage(1); }} aria-label="To date" />
-                <select value={paymentTenantFilter} onChange={(event) => { setPaymentTenantFilter(event.target.value); setPaymentPage(1); }}><option value="All">All customers</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}</select>
-                <select value={paymentUnitFilter} onChange={(event) => { setPaymentUnitFilter(event.target.value); setPaymentPage(1); }}><option value="All">All rooms</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.number}</option>)}</select>
-                <select value={paymentMethodFilter} onChange={(event) => { setPaymentMethodFilter(event.target.value); setPaymentPage(1); }}><option>All</option><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Card</option><option>Cheque</option></select>
-                <select value={paymentInvoiceFilter} onChange={(event) => { setPaymentInvoiceFilter(event.target.value); setPaymentPage(1); }}><option value="All">All invoices</option>{invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number}</option>)}</select>
-                <select value={paymentPageSize} onChange={(event) => { setPaymentPageSize(Number(event.target.value)); setPaymentPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
+                <input name="paymentSearch" autoComplete="off" value={paymentSearch} onChange={(event) => { setPaymentSearch(event.target.value); setPaymentPage(1); }} placeholder="Search reference, customer, room" />
+                <input name="paymentDateFrom" autoComplete="off" type="date" value={paymentDateFrom} onChange={(event) => { setPaymentDateFrom(event.target.value); setPaymentPage(1); }} aria-label="From date" />
+                <input name="paymentDateTo" autoComplete="off" type="date" value={paymentDateTo} onChange={(event) => { setPaymentDateTo(event.target.value); setPaymentPage(1); }} aria-label="To date" />
+                <select name="paymentTenantFilter" autoComplete="off" value={paymentTenantFilter} onChange={(event) => { setPaymentTenantFilter(event.target.value); setPaymentPage(1); }}><option value="All">All customers</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.full_name || tenant.company_name}</option>)}</select>
+                <select name="paymentUnitFilter" autoComplete="off" value={paymentUnitFilter} onChange={(event) => { setPaymentUnitFilter(event.target.value); setPaymentPage(1); }}><option value="All">All rooms</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.number}</option>)}</select>
+                <select name="paymentMethodFilter" autoComplete="off" value={paymentMethodFilter} onChange={(event) => { setPaymentMethodFilter(event.target.value); setPaymentPage(1); }}><option>All</option><option>Bank Transfer</option><option>Cash</option><option>Mobile Money</option><option>Card</option><option>Cheque</option></select>
+                <select name="paymentInvoiceFilter" autoComplete="off" value={paymentInvoiceFilter} onChange={(event) => { setPaymentInvoiceFilter(event.target.value); setPaymentPage(1); }}><option value="All">All invoices</option>{invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number}</option>)}</select>
+                <select name="paymentPageSize" autoComplete="off" value={paymentPageSize} onChange={(event) => { setPaymentPageSize(Number(event.target.value)); setPaymentPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
               </div>
               <div className="unit-table-wrap"><table className="unit-table payment-table"><thead><tr><th>No.</th><th>Date</th><th>Customer</th><th>Room</th><th>Invoice</th><th>Reference</th><th>Method</th><th>Receipt</th><th>Amount</th><th>Action</th></tr></thead><tbody>
-                {visiblePayments.length === 0 ? <tr><td colSpan={10}>No payments match these filters.</td></tr> : visiblePayments.map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(paymentPage - 1) * paymentPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "Unknown customer"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{payment.receipt_number || "-"}</td><td><strong>{formatAmount(payment.amount)}</strong></td><td><button type="button" className="table-link" onClick={() => printReceipt(payment)}>Receipt</button></td></tr>; })}
+                {visiblePayments.length === 0 ? <tr><td colSpan={10}>No payments match these filters.</td></tr> : visiblePayments.map((payment, index) => { const tenant = tenants.find((item) => String(item.id) === String(payment.tenant_id)); const unit = units.find((item) => String(item.id) === String(payment.unit_id)); const invoice = invoices.find((item) => String(item.id) === String(payment.invoice_id)); return <tr key={payment.id}><td>{(paymentPage - 1) * paymentPageSize + index + 1}</td><td>{dateOnly(payment.payment_date)}</td><td>{tenant?.full_name || tenant?.company_name || "Unknown customer"}</td><td>{unit?.number || "-"}</td><td>{invoice?.number || payment.invoice_id}</td><td>{payment.payment_reference}</td><td>{payment.payment_method}</td><td>{payment.receipt_number || "-"}</td><td><strong>{formatAmount(payment.amount)}</strong></td><td><button type="button" className="table-link" onClick={() => printReceipt(payment)}>Receipt</button> <button type="button" className="table-link" onClick={() => void deletePayment(payment)}>Delete</button></td></tr>; })}
               </tbody><tfoot><tr><td colSpan={9}>Filtered total</td><td>{formatAmount(filteredPaymentTotal)}</td></tr></tfoot></table></div>
               <div className="pagination"><span>Showing {visiblePayments.length ? (paymentPage - 1) * paymentPageSize + 1 : 0} to {Math.min(paymentPage * paymentPageSize, filteredPayments.length)} of {filteredPayments.length}</span><div><button type="button" disabled={paymentPage === 1} onClick={() => setPaymentPage((page) => page - 1)}>Previous</button><strong>{paymentPage}</strong><button type="button" disabled={paymentPage >= paymentPageCount} onClick={() => setPaymentPage((page) => page + 1)}>Next</button></div></div>
             </div>}
@@ -4479,22 +4546,22 @@ function App() {
             {expenseEntryMode === "list" && <button className="secondary-button payments-add-button" type="button" onClick={() => goTo("/expenses/new")}>+ Record expense</button>}
             {expenseEntryMode === "create" && <form className="panel form-panel payment-entry-panel" onSubmit={handleExpenseSubmit}>
               <div className="section-heading"><h2>Record expense</h2><button className="secondary-button" type="button" onClick={() => { setExpenseForm(defaultExpenseForm); goTo("/expenses"); }}>Back to list</button></div>
-              {selectedBuildingID === "hq" && <label>Building<select value={expenseForm.building_id} onChange={(event) => setExpenseForm((current) => ({ ...current, building_id: event.target.value }))} required><option value="">Select building</option>{buildings.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>}
-              <label>Category<select value={expenseForm.category_id} onChange={(event) => setExpenseForm((current) => ({ ...current, category_id: event.target.value }))} required><option value="">Select category</option>{expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              {selectedBuildingID === "hq" && <label>Building<select name="building_id" autoComplete="off" value={expenseForm.building_id} onChange={(event) => setExpenseForm((current) => ({ ...current, building_id: event.target.value }))} required><option value="">Select building</option>{buildings.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>}
+              <label>Category<select name="category_id" autoComplete="off" value={expenseForm.category_id} onChange={(event) => setExpenseForm((current) => ({ ...current, category_id: event.target.value }))} required><option value="">Select category</option>{expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
               <div className="inline-fields">
-                <label>Amount<input inputMode="decimal" value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: formatAmount(event.target.value) }))} required /></label>
-                <label>Date<input type="date" value={expenseForm.expense_date} onChange={(event) => setExpenseForm((current) => ({ ...current, expense_date: event.target.value }))} required /></label>
+                <label>Amount<input onFocus={(event) => event.target.select()} name="amount" autoComplete="off" inputMode="decimal" value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: formatAmount(event.target.value) }))} required /></label>
+                <label>Date<input name="expense_date" autoComplete="off" type="date" value={expenseForm.expense_date} onChange={(event) => setExpenseForm((current) => ({ ...current, expense_date: event.target.value }))} required /></label>
               </div>
-              <label>Reference<input value={expenseForm.reference} onChange={(event) => setExpenseForm((current) => ({ ...current, reference: event.target.value }))} placeholder="Optional reference" /></label>
-              <label>Notes<textarea value={expenseForm.notes} onChange={(event) => setExpenseForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional expense notes" /></label>
+              <label>Reference<input name="reference" autoComplete="off" value={expenseForm.reference} onChange={(event) => setExpenseForm((current) => ({ ...current, reference: event.target.value }))} placeholder="Optional reference" /></label>
+              <label>Notes<textarea name="notes" autoComplete="off" value={expenseForm.notes} onChange={(event) => setExpenseForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional expense notes" /></label>
               <button className="primary-button" type="submit">Record expense</button>
             </form>}
             {expenseEntryMode === "list" && <div className="panel list-panel payment-ledger-panel">
               <div className="section-heading"><h2>Expense history</h2><span>{filteredExpenseEntries.length} entries · Total {formatAmount(filteredExpenseEntriesTotal)}</span></div>
               <div className="payment-filters">
-                <input value={expenseEntrySearch} onChange={(event) => { setExpenseEntrySearch(event.target.value); setExpenseEntryPage(1); }} placeholder="Search category, reference, notes" />
-                <select value={expenseEntryCategoryFilter} onChange={(event) => { setExpenseEntryCategoryFilter(event.target.value); setExpenseEntryPage(1); }}><option value="All">All categories</option>{expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-                <select value={expenseEntryPageSize} onChange={(event) => { setExpenseEntryPageSize(Number(event.target.value)); setExpenseEntryPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
+                <input name="expenseEntrySearch" autoComplete="off" value={expenseEntrySearch} onChange={(event) => { setExpenseEntrySearch(event.target.value); setExpenseEntryPage(1); }} placeholder="Search category, reference, notes" />
+                <select name="expenseEntryCategoryFilter" autoComplete="off" value={expenseEntryCategoryFilter} onChange={(event) => { setExpenseEntryCategoryFilter(event.target.value); setExpenseEntryPage(1); }}><option value="All">All categories</option>{expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
+                <select name="expenseEntryPageSize" autoComplete="off" value={expenseEntryPageSize} onChange={(event) => { setExpenseEntryPageSize(Number(event.target.value)); setExpenseEntryPage(1); }}><option value="10">10 entries</option><option value="25">25 entries</option><option value="50">50 entries</option></select>
               </div>
               <div className="unit-table-wrap"><table className="unit-table payment-table"><thead><tr><th>No.</th><th>Date</th><th>Building</th><th>Category</th><th>Reference</th><th>Notes</th><th>Amount</th></tr></thead><tbody>
                 {visibleExpenseEntries.length === 0 ? <tr><td colSpan={7}>No expenses match these filters.</td></tr> : visibleExpenseEntries.map((expense, index) => { const category = expenseCategories.find((item) => String(item.id) === String(expense.category_id)); const building = buildings.find((item) => String(item.id) === String(expense.building_id)); return <tr key={expense.id}><td>{(expenseEntryPage - 1) * expenseEntryPageSize + index + 1}</td><td>{dateOnly(expense.expense_date)}</td><td>{building?.name || "-"}</td><td>{category?.name || "-"}</td><td>{expense.reference || "-"}</td><td>{expense.notes || "-"}</td><td><strong>{formatAmount(expense.amount)}</strong></td></tr>; })}
@@ -4510,7 +4577,7 @@ function App() {
               <h2>Profile</h2>
               <label>
                 Full name
-                <input
+                <input autoComplete="name"
                   name="full_name"
                   value={profileForm.full_name}
                   onChange={handleProfileChange}
@@ -4519,7 +4586,7 @@ function App() {
               </label>
               <label>
                 Email
-                <input
+                <input autoComplete="email"
                   name="email"
                   type="email"
                   value={profileForm.email}

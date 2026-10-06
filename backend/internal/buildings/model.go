@@ -10,6 +10,7 @@ type Building struct {
 	Address     string    `json:"address"`
 	Description string    `json:"description,omitempty"`
 	Floors      int       `json:"floors"`
+	UnitCount   int       `json:"unit_count"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

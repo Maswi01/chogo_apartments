@@ -28,6 +28,10 @@ type Handler struct {
 type ServiceAPI interface {
 	CreateBuilding(Building) (*Building, error)
 	ListBuildings() []*Building
+	UpdateBuilding(Building) (*Building, error)
+	DeleteBuilding(uint64) error
+	DeleteInvoice(uint64) error
+	DeletePayment(uint64) error
 	CreateFloor(Floor) (*Floor, error)
 	ListFloorsByBuilding(uint64) []*Floor
 	CreateUnit(Unit) (*Unit, error)
@@ -66,6 +70,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/dashboard", h.dashboard)
 	mux.HandleFunc("GET /api/v1/buildings", h.listBuildings)
 	mux.HandleFunc("POST /api/v1/buildings", h.createBuilding)
+	mux.HandleFunc("PUT /api/v1/buildings/{id}", h.updateBuilding)
+	mux.HandleFunc("DELETE /api/v1/buildings/{id}", h.deleteBuilding)
 	mux.HandleFunc("GET /api/v1/buildings/{id}/floors", h.listFloors)
 	mux.HandleFunc("GET /api/v1/floors", h.listFloors)
 	mux.HandleFunc("POST /api/v1/buildings/{id}/floors", h.createFloor)
@@ -89,8 +95,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/contracts/{id}/documents/latest", h.latestDocument)
 	mux.HandleFunc("GET /api/v1/invoices", h.listInvoices)
 	mux.HandleFunc("POST /api/v1/invoices", h.createInvoice)
+	mux.HandleFunc("DELETE /api/v1/invoices/{id}", h.deleteInvoice)
 	mux.HandleFunc("GET /api/v1/payments", h.listPayments)
 	mux.HandleFunc("POST /api/v1/payments", h.createPayment)
+	mux.HandleFunc("DELETE /api/v1/payments/{id}", h.deletePayment)
 	mux.HandleFunc("GET /api/v1/expense-categories", h.listExpenseCategories)
 	mux.HandleFunc("POST /api/v1/expense-categories", h.createExpenseCategory)
 	mux.HandleFunc("GET /api/v1/expenses", h.listExpenses)
@@ -100,6 +108,66 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 func (h *Handler) dashboard(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(writer).Encode(map[string]interface{}{"data": h.service.DashboardSummary(queryID(request))})
+}
+
+func (h *Handler) updateBuilding(writer http.ResponseWriter, request *http.Request) {
+	id, ok := pathID(request)
+	if !ok {
+		writeJSONError(writer, http.StatusBadRequest, "invalid building id")
+		return
+	}
+	var building Building
+	if err := json.NewDecoder(request.Body).Decode(&building); err != nil {
+		writeJSONError(writer, http.StatusBadRequest, "invalid building payload")
+		return
+	}
+	building.ID = id
+	updated, err := h.service.UpdateBuilding(building)
+	if err != nil {
+		writeJSONError(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	writer.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(writer).Encode(updated)
+}
+
+func (h *Handler) deleteBuilding(writer http.ResponseWriter, request *http.Request) {
+	id, ok := pathID(request)
+	if !ok {
+		writeJSONError(writer, http.StatusBadRequest, "invalid building id")
+		return
+	}
+	if err := h.service.DeleteBuilding(id); err != nil {
+		writeJSONError(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	writer.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) deleteInvoice(writer http.ResponseWriter, request *http.Request) {
+	id, ok := pathID(request)
+	if !ok {
+		writeJSONError(writer, http.StatusBadRequest, "invalid invoice id")
+		return
+	}
+	if err := h.service.DeleteInvoice(id); err != nil {
+		writeJSONError(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	writer.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) deletePayment(writer http.ResponseWriter, request *http.Request) {
+	id, ok := pathID(request)
+	if !ok {
+		writeJSONError(writer, http.StatusBadRequest, "invalid payment id")
+		return
+	}
+	if err := h.service.DeletePayment(id); err != nil {
+		writeJSONError(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	writer.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) listBuildings(writer http.ResponseWriter, request *http.Request) {

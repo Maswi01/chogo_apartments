@@ -72,3 +72,5 @@
 @media (max-width: 420px) { .stats-grid, .amount-summary, .inline-fields, .catalog-grid, .reports-grid { grid-template-columns: 1fr; }.dashboard-heading { align-items: flex-start; flex-direction: column; }.dashboard-row { grid-template-columns: 1fr 1fr; }.dashboard-row .row-action { justify-self: start; }.topbar h1 { font-size: 30px; }.login-story { padding: 28px; min-height: 400px; }.story-copy h1 { font-size: 40px; } }
 .table-action { border: 0; border-radius: 4px; padding: 6px 9px; margin-right: 5px; color: #fff; font: 700 11px 'DM Sans', sans-serif; cursor: pointer; }.table-action.edit { background: #118a8b; }.table-action.delete { background: var(--coral); }
 .unit-table tfoot td { padding: 14px 12px; border-top: 2px solid var(--pine); background: #f1f7e8; color: var(--ink); font-weight: 700; }.unit-table tfoot td:nth-child(5) { color: var(--pine); font: 700 15px 'Space Grotesk', sans-serif; }
+
+.invoice-actions button.danger { background: #d9574f; }
