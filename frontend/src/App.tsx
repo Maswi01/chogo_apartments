@@ -6,7 +6,7 @@ import {
   type FormEvent,
 } from "react";
 import Swal from "sweetalert2";
-import heroImage from "./assets/CHOGO GREEN BACKGROUND.png";
+import heroImage from "./assets/mwita_picture.jpg";
 import docHeader from "./assets/Chogo Real Estate HEADER.png";
 import logoImage from "./assets/ICON ONLY CHOGO REAL ESTATE.png";
 import "./App.css";
