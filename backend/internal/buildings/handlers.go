@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-//go:embed assets/mwita_doc_header.png
+//go:embed assets/chogo_doc_header.png
 var contractHeaderPNG []byte
 
 // contractHeaderDataURI is the letterhead embedded as a data URI so it renders
